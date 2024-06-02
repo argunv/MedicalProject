@@ -1,0 +1,24 @@
+{% extends "base_generic.html" %}
+
+{% block content %}
+  <h2>Doctor Schedule</h2>
+  <h3>{{ doctor.user.get_full_name }}</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Day of Week</th>
+        <th>Start Time</th>
+        <th>End Time</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in schedule %}
+        <tr>
+          <td>{{ entry.get_day_of_week_display }}</td>
+          <td>{{ entry.start }}</td>
+          <td>{{ entry.end }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

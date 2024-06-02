@@ -1,0 +1,22 @@
+{% extends "base_generic.html" %}
+
+{% block content %}
+<h2>Doctor Profile: {{ user.fullname }}</h2>
+<p>Email: {{ user.email }}</p>
+<p>Phone: {{ user.phone }}</p>
+<p>Specialty: {{ user.specialty }}</p>
+
+<h3>Patients</h3>
+<ul>
+    {% for patient in patients %}
+        <li>{{ patient.fullname }} ({{ patient.email }})</li>
+    {% endfor %}
+</ul>
+
+<h3>Visits</h3>
+<ul>
+    {% for visit in visits %}
+        <li>{{ visit.patient.fullname }} - {{ visit.start }} to {{ visit.end }} ({{ visit.status }})</li>
+    {% endfor %}
+</ul>
+{% endblock %}

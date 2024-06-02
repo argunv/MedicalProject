@@ -1,0 +1,17 @@
+{% extends 'base_generic.html' %}
+{% block content %}
+<h1>Ваш профиль</h1>
+<h2>Диагнозы</h2>
+<ul>
+    {% for diagnosis in diagnoses %}
+    <li>{{ diagnosis.description }} ({{ diagnosis.get_is_active_display }})</li>
+    {% endfor %}
+</ul>
+
+<h2>Визиты</h2>
+<ul>
+    {% for visit in visits %}
+    <li>{{ visit.start }} - {{ visit.doctor.fullname }}</li>
+    {% endfor %}
+</ul>
+{% endblock %}

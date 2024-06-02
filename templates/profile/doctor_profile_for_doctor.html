@@ -1,0 +1,15 @@
+{% extends 'base_generic.html' %}
+{% block content %}
+<h1>Профиль доктора</h1>
+<h2>Данные доктора</h2>
+<p>Полное имя: {{ doctor.fullname }}</p>
+<p>Email: {{ doctor.email }}</p>
+<p>Телефон: {{ doctor.phone }}</p>
+
+<h2>Расписание</h2>
+<ul>
+    {% for schedule in schedules %}
+    <li>{{ schedule.get_day_of_week_display }}: {{ schedule.start }} - {{ schedule.end }}</li>
+    {% endfor %}
+</ul>
+{% endblock %}
