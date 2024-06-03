@@ -130,7 +130,7 @@ class Schedule(models.Model):
 
     def clean(self):
         # print(self.start, self.end)
-        if self.start is not None and self.end is not None:
+        if self.start is None and self.end is None:
             raise ValidationError('Start and end times are required.')
         if self.start < 0 or self.end <= 0:
             raise ValidationError("Start and end times must be positive.")

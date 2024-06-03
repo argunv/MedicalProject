@@ -1,0 +1,253 @@
+/* Общие стили для темной темы */
+body {
+    background-color: #1a1a1a;
+    color: #ffffff;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+header {
+    background-color: #333333;
+    color: #ffffff;
+    padding: 20px;
+}
+
+h1 a {
+    color: white;
+    text-decoration: none;
+}
+
+header h1 {
+    margin: 0;
+}
+
+nav ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+nav ul li {
+    display: inline;
+    padding: 20px;
+    margin: 5px 15px;
+}
+
+.table_main {
+    padding-bottom: 70px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+a {
+    color: #ffffff;
+    text-decoration: none;
+}
+
+main {
+    padding: 20px;
+}
+
+footer {
+    background-color: #333333;
+    color: #ffffff;
+    padding: 10px 20px;
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+}
+
+/* Таблица */
+table {
+    width: auto !important;
+    min-width: 400px;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+table th, table td {
+    border: 1px solid #dddddd;
+    padding: 8px;
+    text-align: left;
+}
+
+table th {
+    background-color: #333333;
+    color: #ffffff;
+}
+
+/* Формы */
+form {
+    width: 90%; /* Ширина формы для мобильных устройств */
+    max-width: 400px; /* Максимальная ширина формы */
+    margin: auto;
+}
+
+input[type="text"], input[type="password"], input[type="email"], input[type="number"], input[type="date"], select, textarea {
+    width: 100%;
+    padding: 12px 20px;
+    margin: 8px 0;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    resize: vertical;
+}
+
+input[type="submit"] {
+    background-color: #333333;
+    color: #ffffff;
+    padding: 14px 20px;
+    margin: 8px 0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+input[type="submit"]:hover {
+    background-color: #555555;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* header nav { 
+    width: 60%;
+}
+*/
+
+
+
+header nav ul {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-evenly;
+    align-items: center;
+}
+
+.choose_btn {
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-direction: column;
+}
+
+main {
+    padding-bottom: 70px;
+}
+
+
+/* Стили для обычных кнопок */
+button, a.button {
+    background-color: #4CAF50; /* Зеленый цвет */
+    border: none;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+}
+
+h2 {
+    text-align: center;
+}
+
+/* Стили для кнопок при наведении */
+button:hover, a.button:hover {
+    background-color: #45a049; /* Темно-зеленый цвет */
+}
+
+/* Стили для кнопок при активации */
+button:active, a.button:active {
+    background-color: #3e8e41; /* Еще более темно-зеленый цвет */
+}
+
+form {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Медиа-запросы для мобильных устройств */
+@media screen and (max-width: 768px) {
+    header {
+        display: flex;
+        justify-content: center;
+        padding: 10px;
+    }
+    
+    header nav {
+        width: 100%;
+    }
+
+    header h1 {
+        display: none;
+        /* font-size: 24px; */
+    }
+    
+    nav ul li {
+        display: block;
+        text-align: center;
+        margin-bottom: 5px;
+        margin-right: 5px;
+        margin-left: 5px;
+        padding: 0px;
+    }
+    
+    footer {
+        padding: 5px 10px;
+    }
+}
+
+@media (max-width: 600px) {
+    body {
+      font-size: 14px;
+    }
+    table {
+        width: 100%;
+        min-width: 100%;
+    }
+  }
+
+  table {
+    border-collapse: collapse; /* Убирает границы между ячейками */
+    margin: 20px 0; /* Добавляет отступы сверху и снизу */
+  }
+  
+  th, td {
+    border: 1px solid #ddd; /* Добавляет границу вокруг ячеек */
+    padding: 8px; /* Добавляет отступы внутри ячеек */
+    text-align: left; /* Выравнивает текст по левому краю */
+  }
+  
+  th {
+    background-color: #333; /* Цвет фона заголовка таблицы */
+    color: #fff; /* Цвет текста заголовка таблицы */
+  }
+  @media (max-width: 600px) {
+    table {
+      font-size: 14px; /* Уменьшает размер шрифта для экранов менее 600px */
+    }
+    th, td {
+      padding: 6px; /* Уменьшает отступы внутри ячеек для экранов менее 600px */
+    }
+  }
+  table tr:hover {
+    background-color: #000000; /* Светло-серый фон при наведении на строку */
+    cursor: pointer;
+  }
+
+  table a {
+    text-decoration: none;
+    /* color: #333;
+    
+    &:hover {
+      color: #fff;
+    } */
+  }

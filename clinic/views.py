@@ -4,13 +4,14 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponseForbidden, JsonResponse
 from .forms import (
     register_user_form_viewer,
-    VisitForm, ScheduleForm
+    VisitForm, ScheduleViewForm
 )
 from django.contrib.auth.forms import AuthenticationForm
 from .models import User, Visit, Schedule, Diagnosis, UserType, VisitStatus
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from .serializers import UserSerializer, VisitSerializer, ScheduleSerializer, DiagnosisSerializer
+from datetime import date
 
 
 ROLES = {'patient': 0, 'doctor': 1, 'admin': 2, 'superuser': 3}
@@ -18,6 +19,9 @@ ROLES = {'patient': 0, 'doctor': 1, 'admin': 2, 'superuser': 3}
 
 def main_page_view(request):
     return render(request, 'base_generic.html')
+
+def register_choose_view(request):
+    return render(request, 'register/index.html')
 
 def register(request, role: str):
     role = role.lower()
@@ -86,18 +90,28 @@ def profile_view(request, username=None):
 def render_own_profile(request, profile_user):
     if profile_user.user_level == UserType.PATIENT:
         diagnoses = Diagnosis.objects.filter(patient=profile_user)
-        visits = Visit.objects.filter(patient=profile_user)
+        visits = Visit.objects.filter(patient=profile_user).select_related('doctor')
+        visits_info = []
+        for visit in visits:
+            visits_info.append({
+                'doctor': visit.doctor,
+                'start': f"{(visit.start // 4):02d}:{(visit.start % 4) * 15:02d}",  # Converts to HH:MM format
+                'end': f"{(visit.end // 4):02d}:{(visit.end % 4) * 15:02d}",       # Converts to HH:MM format
+                'status': visit.status,
+            })
         context = {
             'diagnoses': diagnoses,
-            'visits': visits
+            'visits_info': visits_info
         }
         return render(request, 'profile/patient_profile.html', context)
     elif profile_user.user_level == UserType.DOCTOR:
         patients = Visit.objects.filter(doctor=profile_user, status=VisitStatus.ACTIVE).select_related('patient')
         schedules = Schedule.objects.filter(doctor=profile_user)
+        future_visits = Visit.objects.filter(doctor=profile_user, date__gt=date.today())
         context = {
             'patients': patients,
-            'schedules': schedules
+            'schedules': schedules,
+            'future_visits': future_visits
         }
         return render(request, 'profile/doctor_profile.html', context)
 
@@ -138,15 +152,18 @@ def render_doctor_profile_for_patient(request, doctor_user):
     return render(request, 'profile/doctor_profile_for_patient.html', context)
 
 @login_required(login_url='/login/')
-def update_schedule(request, schedule_id):
+def update_schedule(request, schedule_id: int):
     schedule = get_object_or_404(Schedule, id=schedule_id, doctor=request.user)
+    
     if request.method == 'POST':
-        form = ScheduleForm(request.POST, instance=schedule)
+        form = ScheduleViewForm(request.POST, instance=schedule)
+        form.doctor = request.user
         if form.is_valid():
             form.save()
             return redirect('profile', username=request.user.username)
     else:
-        form = ScheduleForm(instance=schedule)
+        form = ScheduleViewForm(instance=schedule)
+        form.doctor = request.user
     return render(request, 'profile/update_schedule.html', {'form': form})
 
 @login_required(login_url='/login/')
@@ -166,10 +183,10 @@ def create_visit(request):
         form = VisitForm(request.POST)
         if form.is_valid():
             form.save()
-            return redirect('visit_list')  # или другое представление после успешного создания визита
+            return redirect(f'/{request.user.username}/')
     else:
         form = VisitForm()
-    return render(request, 'create_visit.html', {'form': form})
+    return render(request, 'profile/create_visit.html', {'form': form})
 
 @login_required(login_url='/login/')
 def edit_visit(request, visit_id):
@@ -178,36 +195,30 @@ def edit_visit(request, visit_id):
         form = VisitForm(request.POST, instance=visit)
         if form.is_valid():
             form.save()
-            return redirect('visit_list')
+            return redirect(f'/{request.user.username}/')
     else:
         form = VisitForm(instance=visit)
-    return render(request, 'edit_visit.html', {'form': form})
+    return render(request, 'profile/edit_visit.html', {'form': form})
 
 @login_required(login_url='/login/')
 def doctor_schedule(request, doctor_id):
     doctor = get_object_or_404(User, id=doctor_id, user_level=UserType.DOCTOR)
     schedule = Schedule.objects.filter(doctor=doctor)
-    return render(request, 'doctor_schedule.html', {'doctor': doctor, 'schedule': schedule})
+    return render(request, 'profile/doctor_schedule.html', {'doctor': doctor, 'schedule': schedule})
 
 @login_required(login_url='/login/')
 def edit_schedule(request):
     if not request.user.is_doctor:
         return redirect('home')
-    
-    doctor = get_object_or_404(User, user=request.user)
+    doctor = request.user
     if request.method == 'POST':
-        form = ScheduleForm(request.POST)
+        form = ScheduleViewForm(request.POST)
         if form.is_valid():
-            schedule = form.save(commit=False)
-            schedule.doctor = doctor
-            schedule.save()
+            form.save()
             return redirect('doctor_schedule', doctor_id=doctor.id)
     else:
-        form = ScheduleForm()
-    return render(request, 'edit_schedule.html', {'form': form})
-
-
-
+        form = ScheduleViewForm()
+    return render(request, 'profile/edit_schedule.html', {'form': form})
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()

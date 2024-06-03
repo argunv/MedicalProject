@@ -1,18 +1,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>{% block title %}My Site{% endblock %}</title>
+    <title>{% block title %}P&D{% endblock %}</title>
+    {% load static %}
+    <link rel="stylesheet" type="text/css" href="{% static 'css/styles.css' %}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
     <header>
-        <h1>My Site</h1>
+        <h1>
+            {% if user.is_authenticated %}
+                <a href="{% url 'profile' username=user.username %}">P&D</a>
+            {% else %}
+                <a href="#">P&D</a> {% endif %}
+        </h1>
         <nav>
             <ul>
-                <li><a href="/">Home</a></li>
-                <li><a href="/register/doctor/">Register as Doctor</a></li>
-                <li><a href="/register/patient/">Register as Patient</a></li>
-                <li><a href="/login/">Login</a></li>
-                <li><a href="/logout/">Logout</a></li>
+                <a href="/"><li>Home</li></a>
+                <a href="/register/"><li>Register</li></a>
+                {% if user.is_authenticated %}
+                    <a href="{% url 'profile' username=user.username %}"><li>Profile</li></a>
+                    <a href="/search/"><li>Search Doctor</li></a>
+                    <a href="/logout/"><li>Logout</li></a>
+                {% else %}
+                    <a href="/login/"><li>Login</li></a>
+                {% endif %}
             </ul>
         </nav>
     </header>
@@ -21,14 +33,7 @@
         {% endblock %}
     </main>
     <footer>
-        <p>© 2024 My Site</p>
+        <p>© 2024 P&D by Vladislav Argun</p>
     </footer>
-    <style>
-        /* Dark theme styles for all objects */
-        * {
-            background-color: black !important;
-            color: white !important;
-        }
-    </style>
 </body>
 </html>

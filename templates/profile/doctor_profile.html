@@ -1,17 +1,59 @@
-{% extends 'base_generic.html' %}
-{% block content %}
-<h1>Ваш профиль</h1>
-<h2>Пациенты</h2>
-<ul>
-    {% for visit in patients %}
-    <li>{{ visit.patient.fullname }} ({{ visit.status }})</li>
-    {% endfor %}
-</ul>
+{% extends "base_generic.html" %}
 
-<h2>Расписание</h2>
-<ul>
-    {% for schedule in schedules %}
-    <li>{{ schedule.get_day_of_week_display }}: {{ schedule.start }} - {{ schedule.end }} <a href="{% url 'update_schedule' schedule.id %}">Изменить</a></li>
-    {% endfor %}
-</ul>
+{% block content %}
+<div class="table_main">
+    <h2>Active Patients</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Patient</th>
+                <th>Visit ID</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for patient in patients %}
+                <tr>
+                    <td>{{ patient.patient }}</td>
+                    <td>{{ patient.id }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Schedule</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Day of Week</th>
+                <th>Start - End</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for schedule in schedules %}
+                <tr>
+                    <td>{{ schedule.day_of_week }}</td>
+                    <td>{{ schedule.start }} - {{ schedule.end }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Future Visits</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Patient</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for visit in future_visits %}
+            <tr>
+                <td onclick="window.location.href='/visit/edit/{{visit.id}}'">{{ visit.patient }}</td>
+                <td onclick="window.location.href='/visit/edit/{{visit.id}}'">{{ visit.date }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% endblock %}

@@ -3,7 +3,7 @@ from django.core.exceptions import PermissionDenied
 from .models import User, Visit, Schedule, Diagnosis, UserType
 from .forms import (
     register_user_form_viewer, user_form_viewer,
-    VisitCreationForm, VisitViewForm, DiagnosisForm, ScheduleForm
+    VisitCreationForm, VisitViewForm, DiagnosisForm, AdminScheduleForm
 )
 
 class UserAdmin(admin.ModelAdmin):
@@ -48,7 +48,7 @@ class VisitAdmin(admin.ModelAdmin):
         return VisitViewForm
 
 class ScheduleAdmin(admin.ModelAdmin):
-    form = ScheduleForm
+    form = AdminScheduleForm
     list_display = ('doctor', 'day_of_week', 'start', 'end')
     search_fields = ('doctor__fullname', 'day_of_week')
     list_filter = ('day_of_week', 'doctor')

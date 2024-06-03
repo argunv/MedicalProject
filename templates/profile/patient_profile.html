@@ -1,17 +1,44 @@
-{% extends 'base_generic.html' %}
-{% block content %}
-<h1>Ваш профиль</h1>
-<h2>Диагнозы</h2>
-<ul>
-    {% for diagnosis in diagnoses %}
-    <li>{{ diagnosis.description }} ({{ diagnosis.get_is_active_display }})</li>
-    {% endfor %}
-</ul>
+{% extends "base_generic.html" %}
 
-<h2>Визиты</h2>
-<ul>
-    {% for visit in visits %}
-    <li>{{ visit.start }} - {{ visit.doctor.fullname }}</li>
-    {% endfor %}
-</ul>
+{% block content %}
+        <div class="table_main">
+            <h2>Diagnoses</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Diagnosis</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for diagnosis in diagnoses %}
+                        <tr>
+                            <td>{{ diagnosis.name }}</td>
+                            <td>{{ diagnosis.description }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <h2>Visits</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Doctor</th>
+                        <th>Start Time</th>
+                        <th>End Time</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for visit in visits_info %}
+                        <tr>
+                            <td>{{ visit.doctor }}</td>
+                            <td>{{ visit.start }}</td>
+                            <td>{{ visit.end }}</td>
+                            <td>{{ visit.status }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
 {% endblock %}

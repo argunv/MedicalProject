@@ -1,11 +1,11 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, BaseUserCreationForm
-from django.contrib.auth.forms import SetPasswordForm
 from django.core.exceptions import ValidationError
 from django.contrib.auth import authenticate
 from .models import User, Visit, Schedule, Diagnosis, UserType, AdminUserType, VisitStatus, WeekDays
 from django.core.exceptions import PermissionDenied
-import datetime
+# import datetime
+from datetime import datetime, timedelta
 from python_usernames import is_safe_username
 
 
@@ -195,6 +195,7 @@ class VisitForm(forms.ModelForm):
         start = cleaned_data.get('start')
         end = cleaned_data.get('end')
         date = cleaned_data.get('date')
+        status = cleaned_data.get('status')
 
         if not doctor or not patient:
             raise ValidationError("Both doctor and patient must have a user account.")
@@ -220,19 +221,9 @@ class VisitForm(forms.ModelForm):
         ).exclude(id=self.instance.id)
 
         if overlapping_visits.exists():
-            raise ValidationError("The doctor already has a visit scheduled during this time.")
-        
-        # Проверка на занятость пациента с этим же доктором
-        overlapping_patient_visits = Visit.objects.filter(
-            patient=patient,
-            doctor=doctor,
-            date=date,
-            start__lt=end,
-            end__gt=start
-        ).exclude(id=self.instance.id)
-
-        if overlapping_patient_visits.exists():
-            raise ValidationError("The patient already has a visit with this doctor during this time.")
+            other_patient_visits = overlapping_visits.exclude(patient=patient)
+            if other_patient_visits.exists():
+                raise ValidationError("The doctor already has a visit scheduled during this time.")
 
         # Проверка на соответствие расписанию доктора
         day_of_week = date.weekday()
@@ -244,6 +235,14 @@ class VisitForm(forms.ModelForm):
         )
         if not schedule.exists():
             raise ValidationError("The visit is outside the doctor's schedule.")
+
+        current_datetime = datetime.now()
+        visit_datetime = datetime.combine(date, datetime.min.time()) + timedelta(minutes=start * 15)  # Assuming each unit of start is 15 minutes
+
+        if visit_datetime > current_datetime and status in [VisitStatus.MISSED, VisitStatus.VISITED]:
+            raise ValidationError("A future visit cannot have the status 'Visited' or 'Missed'.")
+        if visit_datetime <= current_datetime and status == VisitStatus.SCHEDULED:
+            raise ValidationError("A past visit cannot have the status 'Scheduled'.")
 
         return cleaned_data
 
@@ -264,28 +263,31 @@ class DiagnosisForm(forms.ModelForm):
         model = Diagnosis
         fields = '__all__'
 
-    def clean_description(self):
-        description = self.cleaned_data.get('description')
-        if description and len(description) < 10:
-            raise ValidationError("Description must be more detailed.")
-        return description.strip()
-
-class ScheduleForm(forms.ModelForm):
-    class Meta:
-        model = Schedule
-        fields = ['doctor', 'start', 'end', 'day_of_week']
-        widgets = {
-            'day_of_week': forms.Select(choices=[
-                (0, 'Monday'), (1, 'Tuesday'), (2, 'Wednesday'), (3, 'Thursday'), 
-                (4, 'Friday'), (5, 'Saturday'), (6, 'Sunday')
-            ]),
-            'start': forms.NumberInput(attrs={'min': 0, 'max': 96}),
-            'end': forms.NumberInput(attrs={'min': 0, 'max': 96}),
-        }
-
     def clean(self):
         cleaned_data = super().clean()
         doctor = cleaned_data.get('doctor')
+        patient = cleaned_data.get('patient')
+        description = cleaned_data.get('description')
+        if not doctor or not patient:
+            raise ValidationError('Doctor and patient are required.')
+        if doctor.user_level != UserType.DOCTOR:
+            raise ValidationError("The assigned doctor must have the Doctor user level.")
+        if patient.user_level != UserType.PATIENT:
+            raise ValidationError("The assigned patient must have the Patient user level.")
+        if not doctor.is_active:
+            raise ValidationError("The doctor is not active.")
+        if not description:
+            raise ValidationError('Description is required.')
+        if len(description) < 10:
+            raise ValidationError('Description must be more detailed.')
+
+        return cleaned_data
+
+class ScheduleForm(forms.ModelForm):
+    def clean(self):
+        cleaned_data = super().clean()
+        doctor = self.cleaned_data.get('doctor')
+        print(f'Doctor 2: {doctor}')
         start = cleaned_data.get('start')
         end = cleaned_data.get('end')
         day_of_week = cleaned_data.get('day_of_week')
@@ -296,7 +298,6 @@ class ScheduleForm(forms.ModelForm):
             raise ValidationError("The doctor is not active.")
         if not isinstance(start, int) or not isinstance(end, int):
             raise ValidationError("Start and end must be integers.")
-
         overlapping_schedules = Schedule.objects.filter(
             doctor=doctor,
             day_of_week=day_of_week,
@@ -307,3 +308,39 @@ class ScheduleForm(forms.ModelForm):
             raise ValidationError("This schedule overlaps with an existing schedule for the doctor.")
 
         return cleaned_data
+
+    def save(self, commit=True):
+        schedule = super().save(commit=False)
+        if self.doctor:
+            schedule.doctor = self.doctor
+        if commit:
+            schedule.save()
+        return schedule
+
+class AdminScheduleForm(ScheduleForm):
+    class Meta:
+        model = Schedule
+        fields = ['doctor', 'start', 'end', 'day_of_week']
+        widgets = {
+            'day_of_week': forms.Select(choices=WeekDays),
+            'start': forms.NumberInput(attrs={'min': 0, 'max': 96}),
+            'end': forms.NumberInput(attrs={'min': 0, 'max': 96}),
+        }
+
+class ScheduleViewForm(forms.ModelForm):
+    class Meta:
+        model = Schedule
+        fields = ['start', 'end', 'day_of_week']
+        widgets = {
+            'day_of_week': forms.Select(choices=WeekDays),
+            'start': forms.NumberInput(attrs={'min': 0, 'max': 96}),
+            'end': forms.NumberInput(attrs={'min': 0, 'max': 96}),
+        }
+
+    def save(self, commit=True):
+        schedule = super().save(commit=False)
+        if self.instance.pk is None:  # For new instances
+            schedule.doctor = self.doctor
+        if commit:
+            schedule.save()
+        return schedule

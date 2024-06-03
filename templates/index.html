@@ -15,7 +15,7 @@
 
 <h3>Visits</h3>
 <ul>
-    {% for visit in visits %}
+{% for visit in visits %}
         <li>{{ visit.patient.fullname }} - {{ visit.start }} to {{ visit.end }} ({{ visit.status }})</li>
     {% endfor %}
 </ul>

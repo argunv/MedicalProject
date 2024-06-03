@@ -1,0 +1,12 @@
+{% extends "base_generic.html" %}
+
+{% block content %}
+
+<h2>Choose your account type</h2>
+
+<div class="choose_btn">
+    <button onclick="window.location.href='/register/doctor'">Register as Doctor</button>
+    <button onclick="window.location.href='/register/patient'">Register as Patient</button>
+</div>
+
+{% endblock %}
