@@ -73,7 +73,7 @@ class UserForm(forms.ModelForm):
         return username
 
     def clean_user_level(self):
-        user_level = self.cleaned_data.get('user_level')
+        user_level = int(self.cleaned_data.get('user_level'))
         specialty = self.data.get('specialty')
         if user_level not in UserType:
             raise ValidationError("This type of user doesn't exists")
@@ -83,7 +83,7 @@ class UserForm(forms.ModelForm):
 
     def clean_specialty(self):
         specialty = self.cleaned_data.get('specialty')
-        user_level = self.data.get('user_level')
+        user_level = int(self.data.get('user_level'))
 
         if user_level != UserType.DOCTOR and specialty:
             raise ValidationError("Specialty is not allowed for this user_level.")
@@ -93,6 +93,7 @@ class UserForm(forms.ModelForm):
                 raise ValidationError("Specialty is required for doctors.")
             if not specialty.isalpha():
                 raise ValidationError("Specialty must contain only letters.")
+        return specialty
 
 class PatientUserForm(UserForm):
     class Meta:
@@ -188,10 +189,16 @@ class VisitForm(forms.ModelForm):
             'end': forms.NumberInput(attrs={'min': 0, 'max': 96}),
         }
 
-    def clean(self):
+    def clean(self, patient=None, doctor=None):
         cleaned_data = super().clean()
-        doctor = cleaned_data.get('doctor')
-        patient = cleaned_data.get('patient')
+        # doctor = cleaned_data.get('doctor')
+        # patient = cleaned_data.get('patient')
+        if not patient or not doctor:
+            doctor = cleaned_data.get('doctor')
+            patient = cleaned_data.get('patient')
+        else:
+            patient = patient
+            doctor = doctor
         start = cleaned_data.get('start')
         end = cleaned_data.get('end')
         date = cleaned_data.get('date')
@@ -255,8 +262,39 @@ class VisitCreationForm(VisitForm):
 class VisitViewForm(VisitForm):
     class Meta:
         model = Visit
+        fields = ['date', 'start', 'end', 'status', 'description']
+        required_fields = ['date', 'start', 'end', 'status']
+    
+    def __init__(self, *args, **kwargs):
+        visit = kwargs.pop('instance', None)
+        self.doctor = visit.doctor if visit else None
+        self.patient = visit.patient if visit else None
+        super().__init__(*args, **kwargs)
+    
+    def clean(self):
+        # doctor_new = self.doctor
+        # patient_new = self.patient
+        cleaned_data = super().clean(self.doctor, self.patient)
+        # doctor = cleaned_data.get('doctor')
+        # patient = cleaned_data.get('patient')
+        # if not doctor or not patient:
+        #     cleaned_data['doctor'] = doctor_new
+        #     cleaned_data['patient'] = patient_new
+        #     print(self.doctor, self.patient)
+
+        return cleaned_data
+
+class AdminVisitViewForm(VisitForm):
+    class Meta:
+        model = Visit
         fields = ['doctor', 'patient', 'date', 'start', 'end', 'status', 'description']
         required_fields = ['doctor', 'patient', 'date', 'start', 'end', 'status']
+
+class AdminVisitCreationForm(VisitForm):
+    class Meta:
+        model = Visit
+        fields = ['doctor', 'patient', 'date', 'start', 'end', 'description']
+        required_fields = ['doctor', 'patient', 'date', 'start', 'end']
 
 class DiagnosisForm(forms.ModelForm):
     class Meta:
@@ -344,3 +382,50 @@ class ScheduleViewForm(forms.ModelForm):
         if commit:
             schedule.save()
         return schedule
+
+class DoctorSearchForm(forms.Form):
+    fullname = forms.CharField(required=False, label='Имя доктора')
+    specialization = forms.CharField(required=False, label='Специализация')
+    username = forms.CharField(max_length=15, required=False, label='Имя пользователя')
+    email = forms.EmailField(max_length=64, required=False, label='Email')
+    phone = forms.CharField(max_length=15, required=False, help_text='Введите номер телефона без + и других символов', label='Телефон')
+
+    def clean_phone(self):
+        phone = self.cleaned_data.get('phone')
+        if not phone:
+            return ''
+        if phone and not phone.isdigit():
+            raise ValidationError("Phone number must contain only digits.")
+        return phone.strip()
+
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email:
+            return email.strip()
+        return ''
+    
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if not is_safe_username(username) and username != '':
+            raise ValidationError("Username invalid. Try another username.")
+        return username
+
+    def clean_fullname(self):
+        fullname = self.cleaned_data.get('fullname')
+        if not fullname:
+            return ''
+        if any(char.isdigit() for char in fullname):
+            raise ValidationError("Fullname can't contain numbers.")
+        joined_fullname = ' '.join([word.strip() for word in fullname.split()])
+        fullname_length = len(joined_fullname.split())
+        if fullname_length != 2:
+            raise ValidationError("Fullname must contain 2 words.")
+        return joined_fullname
+
+    def clean(self):
+        cleaned_data = super().clean()
+        print(cleaned_data)
+        for _, value in cleaned_data.items():
+            if value != '':
+                return cleaned_data
+        raise ValidationError('Пожалуйста, введите хотя бы один параметр для поиска.')

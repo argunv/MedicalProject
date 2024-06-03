@@ -1,0 +1,31 @@
+{% extends 'base_generic.html' %}
+{% block content %}
+<div class="table_main">
+    <h1>Поиск докторов</h1>
+    <form method="GET" action="{% url 'search_doctors' %}" class="search-form">
+        {{ filter_form.as_p }}
+        <button type="submit" class="btn btn-primary">Искать</button>
+    </form>
+    {% if doctors %}
+        <h2>Результаты поиска:</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Имя</th>
+                    <th>Специальность</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doctor in doctors %}
+                    <tr>
+                        <td><a href="/{{ doctor.username }}">{{ doctor.fullname }}</a></td>
+                        <td>{{ doctor.specialty }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <h2>Ничего не найдено. Попробуйте изменить параметры поиска.</h2>
+    {% endif %}
+</div>
+{% endblock %}

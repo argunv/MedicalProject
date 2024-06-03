@@ -4,9 +4,12 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponseForbidden, JsonResponse
 from .forms import (
     register_user_form_viewer,
-    VisitForm, ScheduleViewForm
+    VisitForm, ScheduleViewForm, VisitViewForm, VisitCreationForm,
+    DoctorSearchForm
 )
+import calendar
 from django.contrib.auth.forms import AuthenticationForm
+from django.db.models import Q
 from .models import User, Visit, Schedule, Diagnosis, UserType, VisitStatus
 from rest_framework import viewsets, status
 from rest_framework.response import Response
@@ -95,9 +98,12 @@ def render_own_profile(request, profile_user):
         for visit in visits:
             visits_info.append({
                 'doctor': visit.doctor,
+                'date': visit.date.strftime('%d.%m.%Y'),
                 'start': f"{(visit.start // 4):02d}:{(visit.start % 4) * 15:02d}",  # Converts to HH:MM format
                 'end': f"{(visit.end // 4):02d}:{(visit.end % 4) * 15:02d}",       # Converts to HH:MM format
                 'status': visit.status,
+                'editable': True if visit.status == VisitStatus.ACTIVE else False,
+                'id': visit.id
             })
         context = {
             'diagnoses': diagnoses,
@@ -107,10 +113,18 @@ def render_own_profile(request, profile_user):
     elif profile_user.user_level == UserType.DOCTOR:
         patients = Visit.objects.filter(doctor=profile_user, status=VisitStatus.ACTIVE).select_related('patient')
         schedules = Schedule.objects.filter(doctor=profile_user)
+        schedule_info = []
+        for schedule in schedules:
+            schedule_info.append({
+                'doctor': schedule.doctor,
+                'start': f"{(schedule.start // 4):02d}:{(schedule.start % 4) * 15:02d}",  # Converts to HH:MM format
+                'end': f"{(schedule.end // 4):02d}:{(schedule.end % 4) * 15:02d}",       # Converts to HH:MM format
+                'day_of_week': calendar.day_name[int(schedule.day_of_week)],
+            })
         future_visits = Visit.objects.filter(doctor=profile_user, date__gt=date.today())
         context = {
             'patients': patients,
-            'schedules': schedules,
+            'schedules': schedule_info,
             'future_visits': future_visits
         }
         return render(request, 'profile/doctor_profile.html', context)
@@ -134,7 +148,7 @@ def render_doctor_profile_for_doctor(request, doctor_user):
 def render_doctor_profile_for_patient(request, doctor_user):
     schedules = Schedule.objects.filter(doctor=doctor_user)
     if request.method == 'POST':
-        form = VisitForm(request.POST)
+        form = VisitCreationForm(request.POST)
         if form.is_valid():
             visit = form.save(commit=False)
             visit.patient = request.user
@@ -142,7 +156,7 @@ def render_doctor_profile_for_patient(request, doctor_user):
             visit.save()
             return redirect('profile', username=request.user.username)
     else:
-        form = VisitForm()
+        form = VisitViewForm
 
     context = {
         'doctor': doctor_user,
@@ -172,7 +186,7 @@ def toggle_diagnosis_status(request, diagnosis_id):
     if request.user == diagnosis.doctor:
         diagnosis.is_active = not diagnosis.is_active
         diagnosis.save()
-        return JsonResponse({'status': 'success', 'new_status': diagnosis.is_active})
+        return redirect(f'/{diagnosis.patient.username}')
     else:
         return HttpResponseForbidden("You do not have access to modify this diagnosis.")
 
@@ -180,24 +194,24 @@ def toggle_diagnosis_status(request, diagnosis_id):
 @login_required(login_url='/login/')
 def create_visit(request):
     if request.method == 'POST':
-        form = VisitForm(request.POST)
+        form = VisitCreationForm(request.POST)
         if form.is_valid():
             form.save()
             return redirect(f'/{request.user.username}/')
     else:
-        form = VisitForm()
+        form = VisitCreationForm
     return render(request, 'profile/create_visit.html', {'form': form})
 
 @login_required(login_url='/login/')
 def edit_visit(request, visit_id):
     visit = get_object_or_404(Visit, id=visit_id)
     if request.method == 'POST':
-        form = VisitForm(request.POST, instance=visit)
+        form = VisitViewForm(request.POST, instance=visit)
         if form.is_valid():
             form.save()
             return redirect(f'/{request.user.username}/')
     else:
-        form = VisitForm(instance=visit)
+        form = VisitViewForm(instance=visit)
     return render(request, 'profile/edit_visit.html', {'form': form})
 
 @login_required(login_url='/login/')
@@ -245,6 +259,31 @@ class VisitViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save()
+
+def search_doctors_view(request):
+    filter_form = DoctorSearchForm(request.GET or None)
+    doctors = User.objects.none()  # Начинаем с пустого набора докторов
+    
+    if request.GET and filter_form.is_valid():  # Проверяем, были ли отправлены данные через GET-запрос и является ли форма валидной
+        doctors = User.objects.filter(user_level=UserType.DOCTOR, is_active=True)
+        
+        if filter_form.cleaned_data['specialization']:
+            doctors = doctors.filter(specialty__icontains=filter_form.cleaned_data['specialization'])
+        if filter_form.cleaned_data['fullname']:
+            doctors = doctors.filter(Q(fullname__icontains=filter_form.cleaned_data['fullname']))
+        if filter_form.cleaned_data['username']:
+            doctors = doctors.filter(Q(username__icontains=filter_form.cleaned_data['username']))
+        if filter_form.cleaned_data['email']:
+            doctors = doctors.filter(Q(email__icontains=filter_form.cleaned_data['email']))
+        if filter_form.cleaned_data['phone']:
+            doctors = doctors.filter(Q(phone__icontains=filter_form.cleaned_data['phone']))
+
+    context = {
+        'doctors': doctors,
+        'filter_form': filter_form,
+    }
+    
+    return render(request, 'search_doctors.html', context)
 
 class ScheduleViewSet(viewsets.ModelViewSet):
     queryset = Schedule.objects.all()

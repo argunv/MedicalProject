@@ -3,7 +3,7 @@ from django.core.exceptions import PermissionDenied
 from .models import User, Visit, Schedule, Diagnosis, UserType
 from .forms import (
     register_user_form_viewer, user_form_viewer,
-    VisitCreationForm, VisitViewForm, DiagnosisForm, AdminScheduleForm
+    AdminVisitCreationForm, AdminVisitViewForm, DiagnosisForm, AdminScheduleForm
 )
 
 class UserAdmin(admin.ModelAdmin):
@@ -44,8 +44,8 @@ class VisitAdmin(admin.ModelAdmin):
 
     def get_form(self, request, obj=None, **kwargs):
         if obj is None:
-            return VisitCreationForm
-        return VisitViewForm
+            return AdminVisitCreationForm
+        return AdminVisitViewForm
 
 class ScheduleAdmin(admin.ModelAdmin):
     form = AdminScheduleForm

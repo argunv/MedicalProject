@@ -1,19 +1,40 @@
 {% extends 'base_generic.html' %}
 {% block content %}
-<h1>Профиль пациента</h1>
-<h2>Данные пациента</h2>
-<p>Полное имя: {{ patient.fullname }}</p>
-<p>Email: {{ patient.email }}</p>
-<p>Телефон: {{ patient.phone }}</p>
 
-<h2>Диагнозы</h2>
-<ul>
-    {% for diagnosis in diagnoses %}
-    <li>{{ diagnosis.description }} ({{ diagnosis.get_is_active_display }})
-        {% if request.user == diagnosis.doctor %}
-        <a href="{% url 'toggle_diagnosis_status' diagnosis.id %}">Изменить статус</a>
-        {% endif %}
-    </li>
-    {% endfor %}
-</ul>
+<div class="table_main">
+    <h2>Общая информация о пользователе:</h2>
+    <table>
+        <thread>
+            <tr>
+                <th>Полное имя</th>
+                <th>Email</th>
+                <th>Телефон</th>
+            </tr>
+        </thread>
+        <tbody>
+            <tr>
+                <td>{{ patient.fullname }}</td>
+                <td>{{ patient.email }}</td>
+                <td>+{{ patient.phone }}</td>
+            </tr>
+        </tbody>
+    </table>
+    <h2>Диагнозы</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Описание</th>
+                <th>Активный</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for diagnosis in diagnoses %}
+                <tr>
+                    <td>{{ diagnosis.description }}</td>
+                    <td {% if request.user == diagnosis.doctor %} onclick="window.location = '/toggle_diagnosis_status/{{diagnosis.id}}'" {% else %} {% endif %}>{% if diagnosis.is_active %}Да{% else %}Нет{% endif %}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% endblock %}

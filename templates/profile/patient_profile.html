@@ -24,6 +24,7 @@
                 <thead>
                     <tr>
                         <th>Doctor</th>
+                        <th>Date</th>
                         <th>Start Time</th>
                         <th>End Time</th>
                         <th>Status</th>
@@ -31,8 +32,9 @@
                 </thead>
                 <tbody>
                     {% for visit in visits_info %}
-                        <tr>
+                        <tr onclick="window.location='{% if visit.editable == True %}/visit/edit/{{ visit.id }}{% else %}#{% endif %}'">
                             <td>{{ visit.doctor }}</td>
+                            <td>{{ visit.date }}</td>
                             <td>{{ visit.start }}</td>
                             <td>{{ visit.end }}</td>
                             <td>{{ visit.status }}</td>
