@@ -46,7 +46,8 @@ class UserManager(BaseUserManager):
             raise ValueError('The password field must be set')
         if not is_safe_username(username, max_length=15):
             raise ValueError('The Username is not safe')
-        
+        extra_fields.setdefault('is_staff', False)
+        extra_fields.setdefault('is_superuser', False)
         email = self.normalize_email(email)
         user = self.model(
             username=username,
@@ -111,10 +112,22 @@ class Visit(models.Model):
     doctor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='doctor_visits')
     patient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='patient_visits')
     date = models.DateField()
-    start = models.IntegerField()
-    end = models.IntegerField()
+    start = models.PositiveIntegerField()
+    end = models.PositiveIntegerField()
     status = models.CharField(max_length=20, choices=VisitStatus.choices, default=VisitStatus.SCHEDULED)
     description = models.TextField(blank=True)
+
+    # def clean(self): # NOTE 09.06.2024 ???
+    #     if not isinstance(self.start, int) or not isinstance(self.end, int):
+    #         self.start = convert_to_number(self.start)
+    #         self.end = convert_to_number(self.end)
+    #     if isinstance(self.date, str):
+    #         def _wrapper(format_: str):
+    #             try:
+    #                 datetime.strptime(self.date, format_)
+    #             except:
+    #                 return 
+    #             self.date = [i for i in [_wrapper(j) for j in ['%Y-%m-%d', '%Y.%m.%d', '%Y/%m/%d']] if i is not None]
 
     def __str__(self):
         return f'{self.doctor} - {self.patient} on {self.date} from {self.start*15} to {self.end*15} minutes'

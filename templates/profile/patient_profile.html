@@ -6,15 +6,17 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Diagnosis</th>
+                        <th>Doctor</th>
                         <th>Description</th>
+                        <th>Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for diagnosis in diagnoses %}
                         <tr>
-                            <td>{{ diagnosis.name }}</td>
+                            <td>{{ diagnosis.doctor.fullname }}</td>
                             <td>{{ diagnosis.description }}</td>
+                            <td>{% if diagnosis.is_active %}Active{% else %}Inactive{% endif %}</td>
                         </tr>
                     {% endfor %}
                 </tbody>

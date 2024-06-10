@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth import authenticate
 from .models import User, Visit, Schedule, Diagnosis, UserType, AdminUserType, VisitStatus, WeekDays
 from django.core.exceptions import PermissionDenied
+from django.forms.widgets import HiddenInput
 # import datetime
 from datetime import datetime, timedelta
 from python_usernames import is_safe_username
@@ -32,6 +33,20 @@ def register_user_form_viewer(user_level: UserType):
         return DoctorRegistrationForm
     else:
         raise PermissionDenied('You do not have permission to access this page.')
+
+
+def convert_to_number(time_str) -> int:
+    if isinstance(time_str, int):
+        return time_str
+    try:
+        hours, minutes = map(int, str(time_str).split(":"))
+        if 0 <= hours < 24 and 0 <= minutes < 60:
+            return (hours * 4) + (minutes // 15)
+        else:
+            return -1  # Неверное время
+    except ValueError:
+        return -1  # Неверный формат времени
+
 
 class UserForm(forms.ModelForm):
     def clean_fullname(self):
@@ -110,10 +125,22 @@ class AdminUserForm(UserForm):
         model = User
         fields = ['username', 'fullname', 'email', 'phone', 'specialty', 'is_active']
 
-class SuperUserForm(UserForm):
+class SuperUserForm(forms.ModelForm):
+    is_staff = forms.BooleanField(required=False, widget=HiddenInput(), initial=False)
+    is_superuser = forms.BooleanField(required=False, widget=HiddenInput(), initial=False)
+
     class Meta:
         model = User
-        fields = ['username', 'fullname', 'email', 'phone', 'specialty', 'user_level', 'is_active']
+        fields = ['username', 'fullname', 'email', 'phone', 'specialty', 'user_level', 'is_active', 'is_superuser', 'is_staff']
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        user_level = cleaned_data.get('user_level')
+        if user_level in [UserType.PATIENT, UserType.DOCTOR]:
+            cleaned_data['is_staff'] = False
+            cleaned_data['is_superuser'] = False
+        return cleaned_data
+            
 
 class UserRegistrationForm(BaseUserCreationForm, UserForm):
     def clean_username(self):
@@ -185,8 +212,8 @@ class VisitForm(forms.ModelForm):
         fields = '__all__'
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date'}),
-            'start': forms.NumberInput(attrs={'min': 0, 'max': 96}),
-            'end': forms.NumberInput(attrs={'min': 0, 'max': 96}),
+            'start': forms.TimeInput(),
+            'end': forms.TimeInput(),
         }
 
     def clean(self, patient=None, doctor=None):
@@ -199,8 +226,8 @@ class VisitForm(forms.ModelForm):
         else:
             patient = patient
             doctor = doctor
-        start = cleaned_data.get('start')
-        end = cleaned_data.get('end')
+        start = convert_to_number(cleaned_data.get('start'))
+        end = convert_to_number(cleaned_data.get('end'))
         date = cleaned_data.get('date')
         status = cleaned_data.get('status')
 
@@ -254,15 +281,46 @@ class VisitForm(forms.ModelForm):
         return cleaned_data
 
 class VisitCreationForm(VisitForm):
+    start = forms.TimeField()
+    end = forms.TimeField()
+
     class Meta:
         model = Visit
         fields = ['doctor', 'patient', 'date', 'start', 'end', 'description']
         required_fields = ['doctor', 'patient', 'date', 'start', 'end']
 
+    def clean(self):
+        cleaned_data = super().clean()
+
+        start_time_str = cleaned_data.get('start')
+        end_time_str = cleaned_data.get('end')
+
+        if start_time_str:
+            start_time_int = convert_to_number(start_time_str)
+            if start_time_int == -1:
+                self.add_error('start', "Неверное время начала приема. Формат: 'hh:mm'.")
+            else:
+                cleaned_data['start'] = start_time_int
+
+        if end_time_str:
+            end_time_int = convert_to_number(end_time_str)
+            if end_time_int == -1:
+                self.add_error('end', "Неверное время окончания приема. Формат: 'hh:mm'.")
+            else:
+                cleaned_data['end'] = end_time_int
+
+        # Additional validation logic for start and end time (e.g., ensuring end time is after start time)
+
+        return cleaned_data
+
 class VisitViewForm(VisitForm):
+    date = forms.DateField(widget=forms.DateInput)
+    start = forms.TimeField(widget=forms.TimeInput())
+    end = forms.TimeField(widget=forms.TimeInput())
+
     class Meta:
         model = Visit
-        fields = ['date', 'start', 'end', 'status', 'description']
+        fields = ['date', 'start', 'end', 'description']
         required_fields = ['date', 'start', 'end', 'status']
     
     def __init__(self, *args, **kwargs):
@@ -272,15 +330,8 @@ class VisitViewForm(VisitForm):
         super().__init__(*args, **kwargs)
     
     def clean(self):
-        # doctor_new = self.doctor
-        # patient_new = self.patient
-        cleaned_data = super().clean(self.doctor, self.patient)
-        # doctor = cleaned_data.get('doctor')
-        # patient = cleaned_data.get('patient')
-        # if not doctor or not patient:
-        #     cleaned_data['doctor'] = doctor_new
-        #     cleaned_data['patient'] = patient_new
-        #     print(self.doctor, self.patient)
+        cleaned_data = super().clean(self.patient, self.doctor)
+        cleaned_data['status'] = 'Active'
 
         return cleaned_data
 
@@ -361,8 +412,8 @@ class AdminScheduleForm(ScheduleForm):
         fields = ['doctor', 'start', 'end', 'day_of_week']
         widgets = {
             'day_of_week': forms.Select(choices=WeekDays),
-            'start': forms.NumberInput(attrs={'min': 0, 'max': 96}),
-            'end': forms.NumberInput(attrs={'min': 0, 'max': 96}),
+            'start': forms.TimeInput(),
+            'end': forms.TimeInput(),
         }
 
 class ScheduleViewForm(forms.ModelForm):
@@ -371,8 +422,8 @@ class ScheduleViewForm(forms.ModelForm):
         fields = ['start', 'end', 'day_of_week']
         widgets = {
             'day_of_week': forms.Select(choices=WeekDays),
-            'start': forms.NumberInput(attrs={'min': 0, 'max': 96}),
-            'end': forms.NumberInput(attrs={'min': 0, 'max': 96}),
+            'start': forms.TimeInput(),
+            'end': forms.TimeInput(),
         }
 
     def save(self, commit=True):

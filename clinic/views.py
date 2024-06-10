@@ -26,6 +26,35 @@ def main_page_view(request):
 def register_choose_view(request):
     return render(request, 'register/index.html')
 
+
+def convert(number: int) -> str:
+    """Convert number to time using 24 hours format. Example: convert(1) -> '00:15'
+
+    Args:
+        number (int): _description_
+
+    Returns:
+        str: _description_
+    """
+    if 0 <= number <= 96:
+        hours = number // 4
+        minutes = (number % 4) * 15
+        return f"{hours:02}:{minutes:02}"
+    else:
+        return "Неверное число. Введите значение от 0 до 96."
+
+
+def convert_to_number(time_str: str) -> int:
+    try:
+        hours, minutes = map(int, time_str.split(":"))
+        if 0 <= hours < 24 and 0 <= minutes < 60:
+            return (hours * 4) + (minutes // 15)
+        else:
+            return -1  # Неверное время
+    except ValueError:
+        return -1  # Неверный формат времени
+
+
 def register(request, role: str):
     role = role.lower()
     try:
@@ -117,8 +146,8 @@ def render_own_profile(request, profile_user):
         for schedule in schedules:
             schedule_info.append({
                 'doctor': schedule.doctor,
-                'start': f"{(schedule.start // 4):02d}:{(schedule.start % 4) * 15:02d}",  # Converts to HH:MM format
-                'end': f"{(schedule.end // 4):02d}:{(schedule.end % 4) * 15:02d}",       # Converts to HH:MM format
+                'start': convert(schedule.start),  # Converts to HH:MM format
+                'end': convert(schedule.end),       # Converts to HH:MM format
                 'day_of_week': calendar.day_name[int(schedule.day_of_week)],
             })
         future_visits = Visit.objects.filter(doctor=profile_user, date__gt=date.today())
@@ -158,6 +187,14 @@ def render_doctor_profile_for_patient(request, doctor_user):
     else:
         form = VisitViewForm
 
+    schedule_info = []
+    for schedule in schedules:
+        schedule_info.append({
+            'doctor': schedule.doctor,
+            'start': convert(schedule.start),  # Converts to HH:MM format
+            'end': convert(schedule.end),       # Converts to HH:MM format
+            'day_of_week': calendar.day_name[int(schedule.day_of_week)],
+        })
     context = {
         'doctor': doctor_user,
         'schedules': schedules,
