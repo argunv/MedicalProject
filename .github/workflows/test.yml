@@ -45,4 +45,4 @@ jobs:
     - name: Запуск тестов
       run: python manage.py test tests/
       env:
-        DATABASE_URL: postgres://user:password@localhost:5432/test_db
+        DATABASE_URL: postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DBNAME}
