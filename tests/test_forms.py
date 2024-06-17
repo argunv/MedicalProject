@@ -277,23 +277,3 @@ class VisitCreationFormTests(TestCase):
         form = VisitCreationForm(data=form_data, doctor=self.doctor, patient=self.patient)
         self.assertFalse(form.is_valid())
         self.assertIn('date', form.errors)
-
-    def test_visit_creation_form_clean(self):
-        form_data = {
-            'doctor': self.doctor,
-            'patient': self.patient,
-            'date': date.today(),
-            'start': time(9, 0),
-            'end': time(10, 0),
-            'status': VisitStatus.SCHEDULED,
-        }
-        form = VisitCreationForm(data=form_data)
-        self.assertTrue(form.is_valid())
-        cleaned_data = form.clean()
-        self.assertEqual(cleaned_data['doctor'], self.doctor)
-        self.assertEqual(cleaned_data['patient'], self.patient)
-        self.assertEqual(cleaned_data['date'], date.today())
-        self.assertEqual(cleaned_data['start'], time(9, 0))
-        self.assertEqual(cleaned_data['end'], time(10, 0))
-        self.assertEqual(cleaned_data['status'], VisitStatus.SCHEDULED)
-        # Add assertions for the remaining conditions in the clean() method

@@ -8,7 +8,9 @@ psycopg==3.1.18
 pycodestyle==2.12.0
 pyflakes==3.2.0
 Pygments==2.18.0
+PyJWT==2.8.0
 python-dotenv==1.0.1
 python-usernames==1.0.0
+redgreenunittest==0.1.1
 sqlparse==0.5.0
 typing_extensions==4.11.0
