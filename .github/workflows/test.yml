@@ -1,0 +1,25 @@
+name: Main test
+on: [push]
+jobs:
+  linter:
+    name: linter
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Установка Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.12
+    - name: dependencies
+      run: |
+        python3.12 -m pip install flake8
+    - name: Flake8
+      run: python3.12 -m flake8 clinic/
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: test
+      run:
+        pip install -r requirements.txt && python manage.py test
