@@ -96,18 +96,26 @@ WSGI_APPLICATION = "medical_project.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": getenv("PG_DBNAME"),
+#         "USER": getenv("PG_USER"),
+#         "PASSWORD": getenv("PG_PASSWORD"),
+#         "HOST": getenv("PG_HOST"),
+#         "PORT": getenv("PG_PORT"),
+#         "OPTIONS": {"options": "-c search_path=public,medical_project"},
+#         "TEST": {
+#             "NAME": "test_db",
+#         },
+#     }
+# }
+
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": getenv("PG_DBNAME"),
-        "USER": getenv("PG_USER"),
-        "PASSWORD": getenv("PG_PASSWORD"),
-        "HOST": getenv("PG_HOST"),
-        "PORT": getenv("PG_PORT"),
-        "OPTIONS": {"options": "-c search_path=public,medical_project"},
-        "TEST": {
-            "NAME": "test_db",
-        },
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': path.join(BASE_DIR, 'db.sqlite3'),
     }
 }
 
