@@ -45,7 +45,7 @@ jobs:
     - name: Настройка базы данных
       run: |
         sudo apt-get install postgresql-client
-        psql -h localhost -U test_user -d test_db -c "CREATE DATABASE test_db;"
+        psql -h localhost -U test_user -d test_db"
       env:
         PGPASSWORD: test_password
     - name: Запуск тестов
