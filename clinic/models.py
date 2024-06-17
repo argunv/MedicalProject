@@ -44,6 +44,7 @@ class WeekDays(models.IntegerChoices):
     SATURDAY = 5, 'Суббота'
     SUNDAY = 6, 'Воскресенье'
 
+
 class UUIDMixin(models.Model):
     """UUIDMixin model for providing a UUID field."""
 
@@ -215,6 +216,7 @@ class Visit(models.Model):
         return f'{self.doctor} - {self.patient} on {self.date} \
             from {self.start.strftime("%H:%M")} to {self.end.strftime("%H:%M")}'
 
+
 class Schedule(models.Model):
     """Schedule model for representing a schedule."""
     doctor = models.ForeignKey(User, on_delete=models.CASCADE, related_name='schedules')
@@ -264,7 +266,8 @@ class Schedule(models.Model):
         Returns:
             str: A string representation of the schedule.
         """
-        return f'{self.doctor} on {self.day_of_week} from {self.start.strftime("%H:%M")} to {self.end.strftime("%H:%M")}'
+        return f'{self.doctor} on {self.day_of_week} from {self.start.strftime("%H:%M")} \
+                to {self.end.strftime("%H:%M")}'
 
 
 class Diagnosis(UUIDMixin):

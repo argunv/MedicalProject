@@ -10,7 +10,6 @@ from rest_framework import viewsets
 from .serializers import UserSerializer, VisitSerializer, ScheduleSerializer, DiagnosisSerializer
 from datetime import date
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.contrib.auth import authenticate
 
 
 from .forms import (
@@ -440,7 +439,7 @@ def edit_schedule(request):
     Returns:
         The rendered edit schedule view or a redirect to the doctor's schedule view.
     """
-    if not request.user.is_doctor:
+    if not request.user.is_authenticated or request.user.user_level != UserType.DOCTOR:
         return redirect('home')
     doctor = request.user
     if request.method == 'POST':
@@ -506,6 +505,7 @@ class VisitViewSet(viewsets.ModelViewSet):
     serializer_class = VisitSerializer
     permission_classes = [IsAuthenticated]
 
+
 class UserViewSet(viewsets.ModelViewSet):
     """
     ViewSet for User model.
@@ -514,6 +514,7 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [AllowAny]
 
+
 class DiagnosisViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Diagnosis model.
@@ -521,6 +522,7 @@ class DiagnosisViewSet(viewsets.ModelViewSet):
     queryset = Diagnosis.objects.all()
     serializer_class = DiagnosisSerializer
     permission_classes = [IsAuthenticated]
+
 
 class ScheduleViewSet(viewsets.ModelViewSet):
     """

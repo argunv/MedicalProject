@@ -1,9 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from django import forms
 from django.contrib.auth.forms import BaseUserCreationForm
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.forms.widgets import HiddenInput
-from typing import Type, Union
 from python_usernames import is_safe_username
 
 from .models import (
@@ -16,17 +15,11 @@ from .models import (
     VisitStatus,
 )
 
-from .config import ERROR_MESSAGES, WORK_DAY_DURATION_LIMIT, START_END_ATTRS, STATUS_ACTIVE, WEEKDAYS_CHOICES, START_END_ATTRS
-from django.shortcuts import redirect
+from .config import ERROR_MESSAGES, WORK_DAY_DURATION_LIMIT, STATUS_ACTIVE, WEEKDAYS_CHOICES, START_END_ATTRS
 
 
-
-WORK_DAY_DURATION_LIMIT = 7200  # 2 hours
-
-
-def user_form_viewer(user_level: UserType) -> Type[forms.ModelForm]:
-    """
-    Returns the appropriate user form based on the user level.
+def user_form_viewer(user_level: UserType) -> type[forms.ModelForm]:
+    """Returns the appropriate user form based on the user level.
 
     Args:
         user_level: The user level.
@@ -46,7 +39,7 @@ def user_form_viewer(user_level: UserType) -> Type[forms.ModelForm]:
         raise PermissionDenied(ERROR_MESSAGES['invalid_user_level'])
 
 
-def register_user_form_viewer(user_level: UserType) -> Type[forms.ModelForm]:
+def register_user_form_viewer(user_level: UserType) -> type[forms.ModelForm]:
     """
     Returns the appropriate registration form based on the user level.
 
@@ -165,7 +158,7 @@ class UserForm(forms.ModelForm):
         """
         specialty = self.cleaned_data.get('specialty')
         user_level = self.data.get('user_level', self.instance.user_level)
-        
+
         if user_level != UserType.DOCTOR and specialty:
             raise ValidationError(ERROR_MESSAGES['invalid_specialty'])
 
@@ -217,7 +210,15 @@ class SuperUserForm(UserForm):
 
     class Meta:
         model = User
-        fields = ['username', 'fullname', 'email', 'phone', 'specialty', 'user_level', 'is_active', 'is_superuser', 'is_staff']
+        fields = ['username',
+                  'fullname',
+                  'email',
+                  'phone',
+                  'specialty',
+                  'user_level',
+                  'is_active',
+                  'is_superuser',
+                  'is_staff']
 
     def clean(self):
         """
@@ -367,9 +368,10 @@ class VisitForm(forms.ModelForm):
     end = forms.TimeField(widget=forms.TimeInput(format='%H:%M', attrs=START_END_ATTRS))
     date = forms.DateField(widget=forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}))
 
-    def clean(self, patient: User = None, doctor: User = None, date: datetime.date = None):
-        """
-        Cleans the form data.
+    def clean(self, patient: User = None,
+              doctor: User = None,
+              date: datetime.date = None):
+        """Cleans the form data.
 
         Args:
             patient: The patient user.
@@ -400,19 +402,16 @@ class VisitForm(forms.ModelForm):
             raise ValidationError(ERROR_MESSAGES['inactive_doctor'])
         if start >= end:
             raise ValidationError(ERROR_MESSAGES['invalid_start_end_time'])
-        if (datetime.combine(datetime.today().date(), end) - datetime.combine(datetime.today().date(), start)) > timedelta(hours=2):
-            raise ValidationError(ERROR_MESSAGES['exceeded_work_day_duration'])
         if not date:
             raise ValidationError(ERROR_MESSAGES['invalid_time_format'])
-        # Limit the duration of the work day to 2 hours
-        if (datetime.combine(datetime.min, end) - datetime.combine(datetime.min, start)).total_seconds() > WORK_DAY_DURATION_LIMIT:
+        if (
+            datetime.combine(datetime.min, end)
+            - datetime.combine(datetime.min, start)
+        ).total_seconds() > WORK_DAY_DURATION_LIMIT:
             raise ValidationError(ERROR_MESSAGES['exceeded_work_day_duration'])
-        
-        # Ensure minutes are multiples of 15
         if start.minute % 15 != 0 or end.minute % 15 != 0:
             raise ValidationError(ERROR_MESSAGES['invalid_time_increment'])
 
-        # Check for doctor's availability
         overlapping_visits = Visit.objects.filter(
             doctor=doctor,
             date=date,
@@ -497,7 +496,7 @@ class VisitViewForm(VisitForm):
         super().__init__(*args, **kwargs)
         # Установка начальных значений полей
         if visit:
-            self.fields['date'].value = visit.date.strftime('%Y-%m-%d') # NOTE HERE WE SET DATE
+            self.fields['date'].value = visit.date.strftime('%Y-%m-%d')
             self.fields['start'].initial = visit.start
             self.fields['end'].initial = visit.end
             self.fields['description'].initial = visit.description
@@ -649,7 +648,10 @@ class DoctorSearchForm(forms.Form):
     specialization = forms.CharField(required=False, label='Специализация')
     username = forms.CharField(max_length=15, required=False, label='Имя пользователя')
     email = forms.EmailField(max_length=64, required=False, label='Email')
-    phone = forms.CharField(max_length=15, required=False, help_text='Введите номер телефона без + и других символов', label='Телефон')
+    phone = forms.CharField(max_length=15,
+                            required=False,
+                            help_text='Введите номер телефона без + и других символов',
+                            label='Телефон')
 
     def clean_phone(self):
         phone = self.cleaned_data.get('phone')

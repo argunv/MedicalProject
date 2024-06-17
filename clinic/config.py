@@ -60,6 +60,11 @@ WEEKDAYS_CHOICES = [
     (6, 'Sunday'),
 ]
 
-START_END_ATTRS = {'class': 'time-picker', 'placeholder': 'HH:MM', 'type': 'time', 'step': 900, 'min': '00:00', 'max': '23:45'}
+START_END_ATTRS = {'class': 'time-picker',
+                   'placeholder': 'HH:MM',
+                   'type': 'time',
+                   'step': 900,
+                   'min': '00:00',
+                   'max': '23:45'}
 
 SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS']

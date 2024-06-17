@@ -190,7 +190,7 @@ class SimpleViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
 
 
-class ToggleDiagnosisStatusViewTests(TestCase):
+class DiagnosisViewTests(TestCase):
     def setUp(self):
         self.doctor = User.objects.create_user(
             username='testdoctor3',
@@ -350,3 +350,178 @@ class ClinicModelTests(TestCase):
         self.assertEqual(visit.end, time(11, 0))
         self.assertEqual(visit.status, 'Active')
 
+class RegisterViewTests(TestCase):
+    def test_register_view_invalid_role(self):
+        response = self.client.get(reverse('register', kwargs={'role': 'invalid_role'}))
+        self.assertEqual(response.status_code, 403)
+    
+    def test_register_view_admin_role(self):
+        response = self.client.get(reverse('register', kwargs={'role': 'admin'}))
+        self.assertEqual(response.status_code, 403)
+    
+    
+    def test_register_view_post_invalid_form(self):
+        response = self.client.post(reverse('register', kwargs={'role': 'doctor'}), {
+            'username': 'testuserl',
+            'fullname': 'Test User',
+            'email': 'testuser@example.com',
+            'phone': '1234567890',
+            'password': ''  # Invalid form field
+        })
+        self.assertEqual(response.status_code, 200)  # Assuming a re-render of the registration form
+        self.assertFalse(User.objects.filter(username='testuserl', user_level=UserType.DOCTOR).exists())
+
+
+class RenderDoctorProfileForPatientViewTests(TestCase):
+    def setUp(self):
+        self.doctor = User.objects.create_user(
+            username='testdoctork',
+            fullname='Test Doctor',
+            email='testdoctor@example.com',
+            phone='1112223333',
+            user_level=UserType.DOCTOR,
+            password='testpassword'
+        )
+        self.patient = User.objects.create_user(
+            username='testpatientj',
+            fullname='Test Patient',
+            email='testpatient@example.com',
+            phone='4445556666',
+            user_level=UserType.PATIENT,
+            password='testpassword'
+        )
+        self.client.login(username='testpatientk', password='testpassword')
+        self.schedule = Schedule.objects.create(
+            doctor=self.doctor,
+            start='09:00',
+            end='17:00',
+            day_of_week=WeekDays.MONDAY
+        )
+
+
+class ToggleDiagnosisStatusViewTests(TestCase):
+    def setUp(self):
+        self.doctor = User.objects.create_user(
+            username='testdoctor7',
+            fullname='Test Doctor',
+            email='testdoctor@example.com',
+            phone='1112223333',
+            user_level=UserType.DOCTOR,
+            password='testpassword'
+        )
+        self.patient = User.objects.create_user(
+            username='testpatient7',
+            fullname='Test Patient',
+            email='testpatient@example.com',
+            phone='4445556666',
+            user_level=UserType.PATIENT,
+            password='testpassword'
+        )
+        self.diagnosis = Diagnosis.objects.create(
+            description='Initial diagnosis',
+            patient=self.patient,
+            doctor=self.doctor,
+            is_active=True
+        )
+        self.client.login(username='testdoctor7', password='testpassword')
+    
+    def test_toggle_diagnosis_status(self):
+        response = self.client.get(reverse('toggle_diagnosis_status', kwargs={'diagnosis_id': self.diagnosis.id}))
+        self.assertEqual(response.status_code, 302)  # Assuming a redirect after successful toggle
+        self.diagnosis.refresh_from_db()
+        self.assertEqual(self.diagnosis.is_active, False)  # Assuming the initial status was True
+        self.assertEqual(response.url, f'/{self.diagnosis.patient.username}')
+    
+    def test_toggle_diagnosis_status_unauthorized(self):
+        self.client.logout()
+        response = self.client.get(reverse('toggle_diagnosis_status', kwargs={'diagnosis_id': self.diagnosis.id}))
+        self.assertEqual(response.status_code, 302)
+        self.diagnosis.refresh_from_db()
+        self.assertEqual(self.diagnosis.is_active, True)  # Assuming the initial status was True
+
+
+class EditScheduleViewTests(TestCase):
+    def setUp(self):
+        self.doctor = User.objects.create_user(
+            username='testdoctor',
+            fullname='Test Doctor',
+            email='testdoctor@example.com',
+            phone='1112223333',
+            user_level=UserType.DOCTOR,
+            password='testpassword'
+        )
+        self.client.login(username='testdoctor', password='testpassword')
+    
+    def test_edit_schedule_view_post(self):
+        response = self.client.post(reverse('edit_schedule'), {
+            'start': '09:00',
+            'end': '17:00',
+            'day_of_week': WeekDays.MONDAY,
+            'doctor': self.doctor.id
+        })
+        self.assertEqual(response.status_code, 302)  # Assuming a redirect after successful update
+        self.assertTrue(Schedule.objects.filter(doctor=self.doctor, start='09:00', end='17:00', day_of_week=WeekDays.MONDAY).exists())
+
+class SearchDoctorsViewTests(TestCase):
+    def test_search_doctors_view_no_filter(self):
+        response = self.client.get(reverse('search_doctors'))
+        self.assertEqual(response.status_code, 200)
+        self.assertQuerysetEqual(response.context['doctors'], User.objects.filter(user_level=UserType.DOCTOR, is_active=True))
+
+    def test_search_doctors_view_with_specialization_filter(self):
+        response = self.client.get(reverse('search_doctors'), {'specialization': 'Cardiology'})
+        self.assertEqual(response.status_code, 200)
+        self.assertQuerysetEqual(response.context['doctors'], User.objects.filter(user_level=UserType.DOCTOR, is_active=True, specialty__icontains='Cardiology'))
+
+    def test_search_doctors_view_with_fullname_filter(self):
+        response = self.client.get(reverse('search_doctors'), {'fullname': 'John Doe'})
+        self.assertEqual(response.status_code, 200)
+        self.assertQuerysetEqual(response.context['doctors'], User.objects.filter(user_level=UserType.DOCTOR, is_active=True, fullname__icontains='John Doe'))
+
+    def test_search_doctors_view_with_username_filter(self):
+        response = self.client.get(reverse('search_doctors'), {'username': 'johndoe'})
+        self.assertEqual(response.status_code, 200)
+        self.assertQuerysetEqual(response.context['doctors'], User.objects.filter(user_level=UserType.DOCTOR, is_active=True, username__icontains='johndoe'))
+
+    def test_search_doctors_view_with_email_filter(self):
+        response = self.client.get(reverse('search_doctors'), {'email': 'johndoe@example.com'})
+        self.assertEqual(response.status_code, 200)
+        self.assertQuerysetEqual(response.context['doctors'], User.objects.filter(user_level=UserType.DOCTOR, is_active=True, email__icontains='johndoe@example.com'))
+
+    def test_search_doctors_view_with_phone_filter(self):
+        response = self.client.get(reverse('search_doctors'), {'phone': '1234567890'})
+        self.assertEqual(response.status_code, 200)
+        self.assertQuerysetEqual(response.context['doctors'], User.objects.filter(user_level=UserType.DOCTOR, is_active=True, phone__icontains='1234567890'))
+
+class DoctorProfileViewTests(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = User.objects.create_user(username='testuser1', password='12345', user_level=UserType.PATIENT, is_active=True)
+        self.doctor = User.objects.create_user(username='doctoruser', password='doctorpass', user_level=UserType.DOCTOR, is_active=True)
+        self.schedule = Schedule.objects.create(doctor=self.doctor)
+
+    def test_doctor_profile_view_post_valid_form(self):
+        self.client.login(username='testuser1', password='12345')
+        response = self.client.post(reverse('profile', kwargs={'username': 'testuser1'}), {
+            'date': '2022-12-12',
+            'time': '12:00',
+            # Add the rest of the form fields here
+        })
+        self.assertEqual(response.status_code, 302)  # Check for redirect status code
+        self.assertEqual(response.url, reverse('profile', kwargs={'username': 'testuser1'}))  # Check redirect URL
+
+    def test_doctor_schedule_view(self):
+        response = self.client.get(reverse('doctor_schedule', kwargs={'doctor_id': self.doctor.id}))
+        self.assertEqual(response.status_code, 200)  # Check for successful response status code
+        self.assertContains(response, self.doctor.username)  # Check for doctor's username in the response
+        self.assertContains(response, self.schedule.start)  # Check for schedule start in the response
+
+    def test_doctor_profile_view_post_invalid_phone(self):
+        self.client.login(username='testuser1', password='12345')
+        response = self.client.post(reverse('profile', kwargs={'username': 'testuser1'}), {
+            'date': '2022-12-12',
+            'time': '12:00',
+            'phone': 'abc123'  # Invalid phone number
+        })
+        self.assertEqual(response.status_code, 400)  # Check for bad request status code
+        self.assertFormError(response, 'form', 'phone', 'Invalid phone number')  # Check for specific form error message

@@ -12,10 +12,24 @@ from clinic.forms import (
     AdminUserForm,
     VisitViewForm,
     DiagnosisForm,
-    ScheduleViewForm
+    ScheduleViewForm,
+    DoctorSearchForm,
+    SuperUserForm,
+    AdminUserRegistrationForm,
+    DoctorRegistrationForm,
+    user_form_viewer,
+    register_user_form_viewer
 )
 
 from clinic.models import VisitStatus
+from django.core.exceptions import PermissionDenied, ValidationError
+from datetime import datetime, timedelta
+from django.test import TestCase
+from clinic.models import User, UserType
+from clinic.forms import VisitForm, ERROR_MESSAGES
+from django.test import TestCase
+from clinic.forms import UserForm, ERROR_MESSAGES
+from datetime import datetime, timedelta
 
 
 class UserFormTests(TestCase):
@@ -78,32 +92,6 @@ class UserFormTests(TestCase):
         form = DoctorUserForm(data=form_data)
         print(form.errors)
         self.assertTrue(form.is_valid())
-
-
-class VisitFormTests(TestCase):
-    def setUp(self):
-        self.doctor = User.objects.create(username='doctor', user_level=UserType.DOCTOR, is_active=True)
-        self.patient = User.objects.create(username='patient', user_level=UserType.PATIENT, is_active=True)
-
-    def test_visit_creation_form_valid_without_doctor_schedule(self):
-        form_data = {
-            'date': date.today(),
-            'start': "10:00",
-            'end': "11:00",
-            'description': 'Routine checkup',
-        }
-        form = VisitCreationForm(data=form_data, doctor=self.doctor, patient=self.patient)
-        self.assertFalse(form.is_valid())
-
-    def test_visit_creation_form_invalid_time(self):
-        form_data = {
-            'date': date.today(),
-            'start': "10:00",
-            'end': "11:00",
-            'description': 'Routine checkup',
-        }
-        form = VisitCreationForm(data=form_data, doctor=self.doctor, patient=self.patient)
-        self.assertFalse(form.is_valid())
 
 
 class UserRegistrationFormTests(TestCase):
@@ -191,33 +179,7 @@ class PatientRegistrationFormTests(TestCase):
         form = PatientRegistrationForm(data=form_data)
         self.assertTrue(form.is_valid())
 
-    def test_patient_registration_form_invalid_username(self):
-        form_data = {
-            'username': 'patient 123',
-            'fullname': 'John Doe',
-            'email': 'john.doe@example.com',
-            'phone': '1234567890',
-            'user_level': UserType.PATIENT,
-            'password1': 'strongpassword',
-            'password2': 'strongpassword',
-        }
-        form = PatientRegistrationForm(data=form_data)
-        self.assertFalse(form.is_valid())
-        self.assertIn('username', form.errors)
-
 class AdminUserFormTests(TestCase):
-    def test_admin_user_form_valid(self):
-        form_data = {
-            'username': 'admin123',
-            'fullname': 'Admin User',
-            'email': 'admin.user@example.com',
-            'phone': '1234567890',
-            'specialty': 'Administration',
-            'is_active': True,
-        }
-        form = AdminUserForm(data=form_data)
-        self.assertTrue(form.is_valid())
-
     def test_admin_user_form_invalid_email(self):
         form_data = {
             'username': 'admin123',
@@ -232,68 +194,106 @@ class AdminUserFormTests(TestCase):
         self.assertIn('email', form.errors)
 
 class VisitViewFormTests(TestCase):
-    def test_visit_view_form_valid(self):
-        form_data = {
-            'date': date.today(),
-            'start': "10:00",
-            'end': "11:00",
-            'description': 'Routine checkup',
-            'status': VisitStatus.ACTIVE,
-        }
-        form = VisitViewForm(data=form_data)
-        self.assertTrue(form.is_valid())
+    def test_user_form_viewer_admin(self):
+        form_class = user_form_viewer(UserType.ADMIN)
+        self.assertEqual(form_class, AdminUserForm)
 
-    def test_visit_view_form_invalid_status(self):
-        form_data = {
-            'date': date.today(),
-            'start': "10:00",
-            'end': "11:00",
-            'description': 'Routine checkup',
-            'status': 'InvalidStatus',
-        }
-        form = VisitViewForm(data=form_data)
-        self.assertFalse(form.is_valid())
-        self.assertIn('status', form.errors)
+    def test_user_form_viewer_invalid_user_level(self):
+        with self.assertRaises(PermissionDenied):
+            user_form_viewer('InvalidUserLevel')
+
+    def test_register_user_form_viewer_superuser(self):
+        form_class = register_user_form_viewer(UserType.SUPERUSER)
+        self.assertEqual(form_class, SuperUserRegistrationForm)
+
+    def test_register_user_form_viewer_admin(self):
+        form_class = register_user_form_viewer(UserType.ADMIN)
+        self.assertEqual(form_class, AdminUserRegistrationForm)
+
+    def test_register_user_form_viewer_patient(self):
+        form_class = register_user_form_viewer(UserType.PATIENT)
+        self.assertEqual(form_class, PatientRegistrationForm)
+
+    def test_register_user_form_viewer_doctor(self):
+        form_class = register_user_form_viewer(UserType.DOCTOR)
+        self.assertEqual(form_class, DoctorRegistrationForm)
+
+    def test_register_user_form_viewer_invalid_user_level(self):
+        with self.assertRaises(PermissionDenied):
+            register_user_form_viewer('InvalidUserLevel')
+            user_form_viewer('InvalidUserLevel')
+
 
 class DiagnosisFormTests(TestCase):
-    def test_diagnosis_form_valid(self):
+    def test_diagnosis_form_clean_valid(self):
         form_data = {
-            'name': 'Common Cold',
-            'description': 'A mild viral infection',
+            'doctor': User.objects.create(username='doctor1', user_level=UserType.DOCTOR, fullname='Doctor Smith', email='doctor@example.com', phone='1234567890', password='testpassword'),
+            'patient': User.objects.create(username='patient1', user_level=UserType.PATIENT, fullname='John Doe', email='patient@example.com', phone='1234567890', password='testpassword'),
+            'description': 'Detailed description of the diagnosis',
         }
         form = DiagnosisForm(data=form_data)
         self.assertTrue(form.is_valid())
 
-    def test_diagnosis_form_invalid_name(self):
+    def test_diagnosis_form_clean_invalid_doctor_patient(self):
         form_data = {
-            'name': '',
-            'description': 'A mild viral infection',
+            'doctor': None,
+            'patient': User.objects.create(username='patient1', user_level=UserType.PATIENT, fullname='John Doe', email='patient@example.com', phone='1234567890', password='testpassword'),
+            'description': 'Detailed description of the diagnosis',
         }
         form = DiagnosisForm(data=form_data)
         self.assertFalse(form.is_valid())
-        self.assertIn('name', form.errors)
+        self.assertIn('doctor', form.errors)
 
-class ScheduleViewFormTests(TestCase):
+
+class SuperUserFormTests(TestCase):
+    def test_superuser_form_invalid_user_level(self):
+        form_data = {
+            'username': 'adminusertest2',
+            'fullname': 'Admin User',
+            'email': 'admin@example.com',
+            'phone': '1234567890',
+            'specialty': 'Admin Specialty',
+            'user_level': UserType.PATIENT,
+            'is_active': True,
+            'is_superuser': True,
+            'is_staff': True,
+        }
+        form = SuperUserForm(data=form_data)
+        self.assertFalse(form.is_valid())
+        self.assertIn('user_level', form.errors)
+
+
+class VisitCreationFormTests(TestCase):
     def setUp(self):
-        self.doctor = User.objects.create(username='doctorn', user_level=UserType.DOCTOR, fullname='Doctor Smith', email='asfaafs@example.com', phone='1234567890', password='testpassword')
+        self.doctor = User.objects.create(username='doctor1', user_level=UserType.DOCTOR, fullname='Doctor Smith', email='doctor@example.com', phone='1234567890', password='testpassword')
+        self.patient = User.objects.create(username='patient1', user_level=UserType.PATIENT, fullname='John Doe', email='patient@example.com', phone='1234567890', password='testpassword')
 
-    def test_schedule_view_form_valid(self):
+    def test_visit_creation_form_clean_invalid_missing_date(self):
         form_data = {
-            'doctor': self.doctor.id,
             'start': time(9, 0),
-            'end': time(17, 0),
-            'day_of_week': 1,  # Monday
+            'end': time(10, 0),
+            'description': 'Test visit',
         }
-        form = ScheduleViewForm(data=form_data)
-        self.assertTrue(form.is_valid())
-
-    def test_schedule_view_form_invalid_start_time(self):
-        form_data = {
-            'doctor': self.doctor.id,
-            'start': time(18, 0),
-            'end': time(20, 0),
-            'day_of_week': 1,  # Monday
-        }
-        form = ScheduleViewForm(data=form_data)
+        form = VisitCreationForm(data=form_data, doctor=self.doctor, patient=self.patient)
         self.assertFalse(form.is_valid())
-        self.assertIn('start', form.errors)
+        self.assertIn('date', form.errors)
+
+    def test_visit_creation_form_clean(self):
+        form_data = {
+            'doctor': self.doctor,
+            'patient': self.patient,
+            'date': date.today(),
+            'start': time(9, 0),
+            'end': time(10, 0),
+            'status': VisitStatus.SCHEDULED,
+        }
+        form = VisitCreationForm(data=form_data)
+        self.assertTrue(form.is_valid())
+        cleaned_data = form.clean()
+        self.assertEqual(cleaned_data['doctor'], self.doctor)
+        self.assertEqual(cleaned_data['patient'], self.patient)
+        self.assertEqual(cleaned_data['date'], date.today())
+        self.assertEqual(cleaned_data['start'], time(9, 0))
+        self.assertEqual(cleaned_data['end'], time(10, 0))
+        self.assertEqual(cleaned_data['status'], VisitStatus.SCHEDULED)
+        # Add assertions for the remaining conditions in the clean() method

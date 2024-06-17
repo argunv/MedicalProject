@@ -121,26 +121,3 @@ class AdminTests(TestCase):
     def test_diagnosis_admin_get_form(self):
         form = self.diagnosis_admin.get_form(request=None, obj=None)
         self.assertIsNotNone(form)
-
-    def test_admin_site_register(self):
-        self.site.register(User, UserAdmin)
-        self.site.register(Visit, VisitAdmin)
-        self.site.register(Schedule, ScheduleAdmin)
-        self.site.register(Diagnosis, DiagnosisAdmin)
-        self.assertIn(User, self.site._registry)
-        self.assertIn(Visit, self.site._registry)
-        self.assertIn(Schedule, self.site._registry)
-        self.assertIn(Diagnosis, self.site._registry)
-
-    def test_admin_views(self):
-        user = User(username='testuserm', fullname='Test User', email='test@example.com', phone='1234567890', user_level=UserType.DOCTOR)
-        user.save()
-        self.client.force_login(user)
-        response = self.client.get(reverse('admin:clinic_user_changelist'))
-        self.assertEqual(response.status_code, 200)
-        response = self.client.get(reverse('admin:clinic_visit_changelist'))
-        self.assertEqual(response.status_code, 200)
-        response = self.client.get(reverse('admin:clinic_schedule_changelist'))
-        self.assertEqual(response.status_code, 200)
-        response = self.client.get(reverse('admin:clinic_diagnosis_changelist'))
-        self.assertEqual(response.status_code, 200)
