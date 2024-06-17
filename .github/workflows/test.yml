@@ -23,6 +23,10 @@ jobs:
         image: postgres:latest
         ports:
           - 5432:5432
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -41,10 +45,10 @@ jobs:
     - name: Настройка базы данных
       run: |
         sudo apt-get install postgresql-client
-        psql -h localhost -U ${{ secrets.PG_USER }} -d ${{ secrets.PG_DBNAME }} -c "CREATE DATABASE ${{ secrets.PG_DBNAME }};"
+        psql -h localhost -U test_user -d test_db -c "CREATE DATABASE test_db;"
       env:
-        PGPASSWORD: ${{ secrets.PG_PASSWORD }}
+        PGPASSWORD: test_password
     - name: Запуск тестов
       run: python manage.py test tests/
       env:
-        DATABASE_URL: postgres://${{ secrets.PG_USER }}:${{ secrets.PG_PASSWORD }}@${{ secrets.PG_HOST }}:${{ secrets.PG_PORT }}/${{ secrets.PG_DBNAME }}
+        DATABASE_URL: postgres://test_user:test_password@localhost:5432/test_db
