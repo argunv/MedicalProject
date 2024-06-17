@@ -49,6 +49,8 @@ jobs:
         done
       env:
         PGPASSWORD: test_password
+    - name: Проверка логов PostgreSQL
+      run: docker logs $(docker ps -q --filter ancestor=postgres:latest)
     - name: Настройка базы данных
       run: |
         sudo apt-get install -y postgresql-client
