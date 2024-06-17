@@ -1,16 +1,39 @@
-from django import forms
-from django.contrib.auth.forms import AuthenticationForm, BaseUserCreationForm
-from django.core.exceptions import ValidationError
-from django.contrib.auth import authenticate
-from .models import User, Visit, Schedule, Diagnosis, UserType, AdminUserType, VisitStatus, WeekDays
-from django.core.exceptions import PermissionDenied
-from django.forms.widgets import HiddenInput
-# import datetime
 from datetime import datetime, timedelta
+from django import forms
+from django.contrib.auth.forms import BaseUserCreationForm
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.forms.widgets import HiddenInput
+from typing import Type, Union
 from python_usernames import is_safe_username
 
+from .models import (
+    User,
+    Visit,
+    Schedule,
+    Diagnosis,
+    UserType,
+    AdminUserType,
+    VisitStatus,
+)
 
-def user_form_viewer(user_level: UserType):
+from .config import ERROR_MESSAGES, WORK_DAY_DURATION_LIMIT, START_END_ATTRS, STATUS_ACTIVE, WEEKDAYS_CHOICES, START_END_ATTRS
+from django.shortcuts import redirect
+
+
+
+WORK_DAY_DURATION_LIMIT = 7200  # 2 hours
+
+
+def user_form_viewer(user_level: UserType) -> Type[forms.ModelForm]:
+    """
+    Returns the appropriate user form based on the user level.
+
+    Args:
+        user_level: The user level.
+
+    Returns:
+        The user form class.
+    """
     if user_level == UserType.PATIENT:
         return PatientUserForm
     elif user_level == UserType.DOCTOR:
@@ -20,9 +43,19 @@ def user_form_viewer(user_level: UserType):
     elif user_level == UserType.SUPERUSER:
         return SuperUserForm
     else:
-        raise PermissionDenied('You do not have permission to access this page.')
+        raise PermissionDenied(ERROR_MESSAGES['invalid_user_level'])
 
-def register_user_form_viewer(user_level: UserType):
+
+def register_user_form_viewer(user_level: UserType) -> Type[forms.ModelForm]:
+    """
+    Returns the appropriate registration form based on the user level.
+
+    Args:
+        user_level: The user level.
+
+    Returns:
+        The registration form class.
+    """
     if user_level == UserType.SUPERUSER:
         return SuperUserRegistrationForm
     elif user_level == UserType.ADMIN:
@@ -32,145 +65,240 @@ def register_user_form_viewer(user_level: UserType):
     elif user_level == UserType.DOCTOR:
         return DoctorRegistrationForm
     else:
-        raise PermissionDenied('You do not have permission to access this page.')
-
-
-def convert_to_number(time_str) -> int:
-    if isinstance(time_str, int):
-        return time_str
-    try:
-        hours, minutes = map(int, str(time_str).split(":"))
-        if 0 <= hours < 24 and 0 <= minutes < 60:
-            return (hours * 4) + (minutes // 15)
-        else:
-            return -1  # Неверное время
-    except ValueError:
-        return -1  # Неверный формат времени
+        raise PermissionDenied(ERROR_MESSAGES['invalid_user_level'])
 
 
 class UserForm(forms.ModelForm):
-    def clean_fullname(self):
+    """
+    Base form for user-related forms.
+    """
+
+    def clean_fullname(self) -> str:
+        """
+        Validates the fullname field.
+
+        Returns:
+            The cleaned fullname.
+        """
         fullname = self.cleaned_data.get('fullname')
         if not fullname:
-            raise ValidationError("Fullname can't be empty.")
+            raise ValidationError(ERROR_MESSAGES['empty_fullname'])
         if any(char.isdigit() for char in fullname):
-            raise ValidationError("Fullname can't contain numbers.")
+            raise ValidationError(ERROR_MESSAGES['contains_numbers'])
         joined_fullname = ' '.join([word.strip() for word in fullname.split()])
         fullname_length = len(joined_fullname.split())
         if fullname_length != 2:
-            raise ValidationError("Fullname must contain 2 words.")
+            raise ValidationError(ERROR_MESSAGES['invalid_fullname'])
         return joined_fullname
 
-    def clean_date_of_birth(self):
+    def clean_date_of_birth(self) -> datetime.date:
+        """
+        Validates the date_of_birth field.
+
+        Returns:
+            The cleaned date_of_birth.
+        """
         dob = self.cleaned_data.get('date_of_birth')
         if dob and dob > datetime.date.today():
-            raise ValidationError("Date of birth cannot be in the future.")
+            raise ValidationError(ERROR_MESSAGES['future_dob'])
         return dob
 
-    def clean_phone(self):
+    def clean_phone(self) -> str:
+        """
+        Validates the phone field.
+
+        Returns:
+            The cleaned phone.
+        """
         phone = self.cleaned_data.get('phone')
         if not phone:
-            return 
+            return
         if phone and not phone.isdigit():
-            raise ValidationError("Phone number must contain only digits.")
+            raise ValidationError(ERROR_MESSAGES['invalid_phone'])
         return phone.strip()
 
-    def clean_email(self):
+    def clean_email(self) -> str:
+        """
+        Validates the email field.
+
+        Returns:
+            The cleaned email.
+        """
         email = self.cleaned_data.get('email')
         if not email:
-            raise ValidationError("Email cannot be empty.")
+            raise ValidationError(ERROR_MESSAGES['empty_email'])
         return email.strip()
-    
-    def clean_username(self):
+
+    def clean_username(self) -> str:
+        """
+        Validates the username field.
+
+        Returns:
+            The cleaned username.
+        """
         username = self.cleaned_data.get('username')
         if not is_safe_username(username):
-            raise ValidationError("Username invalid. Try another username.")
+            raise ValidationError(ERROR_MESSAGES['invalid_username'])
         return username
 
-    def clean_user_level(self):
-        user_level = int(self.cleaned_data.get('user_level'))
+    def clean_user_level(self) -> int:
+        """
+        Validates the user_level field.
+
+        Returns:
+            The cleaned user_level.
+        """
+        user_level = self.cleaned_data.get('user_level', self.instance.user_level)
         specialty = self.data.get('specialty')
         if user_level not in UserType:
-            raise ValidationError("This type of user doesn't exists")
+            raise ValidationError(ERROR_MESSAGES['invalid_user_level'])
         if user_level != UserType.DOCTOR and specialty:
-            raise ValidationError("Specialty is not allowed for this type of user.")
+            raise ValidationError(ERROR_MESSAGES['invalid_specialty'])
         return user_level
 
-    def clean_specialty(self):
-        specialty = self.cleaned_data.get('specialty')
-        user_level = int(self.data.get('user_level'))
+    def clean_specialty(self) -> str:
+        """
+        Validates the specialty field.
 
+        Returns:
+            The cleaned specialty.
+        """
+        specialty = self.cleaned_data.get('specialty')
+        user_level = self.data.get('user_level', self.instance.user_level)
+        
         if user_level != UserType.DOCTOR and specialty:
-            raise ValidationError("Specialty is not allowed for this user_level.")
+            raise ValidationError(ERROR_MESSAGES['invalid_specialty'])
 
         if user_level == UserType.DOCTOR:
             if not specialty:
-                raise ValidationError("Specialty is required for doctors.")
+                raise ValidationError(ERROR_MESSAGES['required_specialty'])
             if not specialty.isalpha():
-                raise ValidationError("Specialty must contain only letters.")
+                raise ValidationError(ERROR_MESSAGES['invalid_specialty_letters'])
         return specialty
 
+
 class PatientUserForm(UserForm):
+    """
+    Form for creating/editing patient users.
+    """
+
     class Meta:
         model = User
         fields = ['username', 'fullname', 'email', 'phone']
 
+
 class DoctorUserForm(UserForm):
+    """
+    Form for creating/editing doctor users.
+    """
+
     class Meta:
         model = User
         fields = ['username', 'fullname', 'email', 'phone', 'specialty']
 
+
 class AdminUserForm(UserForm):
+    """
+    Form for creating/editing admin users.
+    """
+
     class Meta:
         model = User
         fields = ['username', 'fullname', 'email', 'phone', 'specialty', 'is_active']
 
-class SuperUserForm(forms.ModelForm):
+
+class SuperUserForm(UserForm):
+    """
+    Form for creating/editing superuser users.
+    """
+
     is_staff = forms.BooleanField(required=False, widget=HiddenInput(), initial=False)
     is_superuser = forms.BooleanField(required=False, widget=HiddenInput(), initial=False)
 
     class Meta:
         model = User
         fields = ['username', 'fullname', 'email', 'phone', 'specialty', 'user_level', 'is_active', 'is_superuser', 'is_staff']
-    
+
     def clean(self):
+        """
+        Cleans the form data.
+
+        Returns:
+            The cleaned data.
+        """
         cleaned_data = super().clean()
         user_level = cleaned_data.get('user_level')
         if user_level in [UserType.PATIENT, UserType.DOCTOR]:
             cleaned_data['is_staff'] = False
             cleaned_data['is_superuser'] = False
         return cleaned_data
-            
+
 
 class UserRegistrationForm(BaseUserCreationForm, UserForm):
-    def clean_username(self):
+    """
+    Base form for user registration.
+    """
+
+    def clean_username(self) -> str:
+        """
+        Validates the username field.
+
+        Returns:
+            The cleaned username.
+        """
         username = self.cleaned_data.get('username')
         if User.objects.filter(username=username).exists():
-            raise ValidationError("This username is already taken.")
+            raise ValidationError(ERROR_MESSAGES['invalid_username'])
         return username
 
-    def clean_email(self):
+    def clean_email(self) -> str:
+        """
+        Validates the email field.
+
+        Returns:
+            The cleaned email.
+        """
         email = self.cleaned_data.get('email')
         if User.objects.filter(email=email).exists():
-            raise ValidationError("This email is already registered.")
+            raise ValidationError(ERROR_MESSAGES['invalid_email'])
         return email
 
-    def clean_phone(self):
+    def clean_phone(self) -> str:
+        """
+        Validates the phone field.
+
+        Returns:
+            The cleaned phone.
+        """
         phone = self.cleaned_data.get('phone')
         if not phone:
-            raise ValidationError("Phone number is required.")
+            raise ValidationError(ERROR_MESSAGES['invalid_phone'])
         if not phone.isdigit():
-            raise ValidationError("Phone number must contain only digits.")
+            raise ValidationError(ERROR_MESSAGES['invalid_phone'])
         if User.objects.filter(phone=phone).exists():
-            raise ValidationError("This phone number is already registered.")
+            raise ValidationError(ERROR_MESSAGES['invalid_phone'])
         return phone
 
+
 class SuperUserRegistrationForm(UserRegistrationForm):
+    """
+    Form for creating superuser users.
+    """
+
     class Meta:
         model = User
         fields = ['username', 'fullname', 'email', 'phone', 'user_level', 'is_active', 'password1', 'password2']
 
     def save(self, commit=True):
+        """
+        Saves the form data.
+
+        Args:
+            commit: Whether to save the data to the database.
+
+        Returns:
+            The saved user object.
+        """
         user = super().save(commit=False)
         # Save the password if set
         if 'new_password1' in self.cleaned_data and self.cleaned_data['new_password1']:
@@ -179,14 +307,28 @@ class SuperUserRegistrationForm(UserRegistrationForm):
             user.save()
         return user
 
+
 class AdminUserRegistrationForm(UserRegistrationForm):
+    """
+    Form for creating admin users.
+    """
+
+    user_level = forms.TypedChoiceField(coerce=int, choices=AdminUserType.choices, initial=AdminUserType.PATIENT)
+
     class Meta:
         model = User
         fields = ['username', 'fullname', 'email', 'phone', 'is_active', 'password1', 'password2']
 
-    user_level = forms.TypedChoiceField(coerce=int, choices=AdminUserType.choices, initial=AdminUserType.PATIENT)
-
     def save(self, commit=True):
+        """
+        Saves the form data.
+
+        Args:
+            commit: Whether to save the data to the database.
+
+        Returns:
+            The saved user object.
+        """
         user = super().save(commit=False)
         # Save the password if set
         if 'new_password1' in self.cleaned_data and self.cleaned_data['new_password1']:
@@ -195,58 +337,82 @@ class AdminUserRegistrationForm(UserRegistrationForm):
             user.save()
         return user
 
+
 class PatientRegistrationForm(UserRegistrationForm):
+    """
+    Form for creating patient users.
+    """
+
     class Meta:
         model = User
         fields = ['username', 'fullname', 'email', 'phone', 'user_level']
 
+
 class DoctorRegistrationForm(UserRegistrationForm):
+    """
+    Form for creating doctor users.
+    """
+
     class Meta:
         model = User
         fields = ['username', 'fullname', 'email', 'phone', 'user_level', 'specialty']
         required_fields = ['username', 'fullname', 'email', 'phone', 'user_level', 'specialty']
 
-class VisitForm(forms.ModelForm):
-    class Meta:
-        model = Visit
-        fields = '__all__'
-        widgets = {
-            'date': forms.DateInput(attrs={'type': 'date'}),
-            'start': forms.TimeInput(),
-            'end': forms.TimeInput(),
-        }
 
-    def clean(self, patient=None, doctor=None):
+class VisitForm(forms.ModelForm):
+    """
+    Base form for creating/editing visits.
+    """
+    start = forms.TimeField(widget=forms.TimeInput(format='%H:%M', attrs=START_END_ATTRS))
+    end = forms.TimeField(widget=forms.TimeInput(format='%H:%M', attrs=START_END_ATTRS))
+    date = forms.DateField(widget=forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}))
+
+    def clean(self, patient: User = None, doctor: User = None, date: datetime.date = None):
+        """
+        Cleans the form data.
+
+        Args:
+            patient: The patient user.
+            doctor: The doctor user.
+            date: The visit date.
+
+        Returns:
+            The cleaned data.
+        """
         cleaned_data = super().clean()
-        # doctor = cleaned_data.get('doctor')
-        # patient = cleaned_data.get('patient')
         if not patient or not doctor:
             doctor = cleaned_data.get('doctor')
             patient = cleaned_data.get('patient')
-        else:
-            patient = patient
-            doctor = doctor
-        start = convert_to_number(cleaned_data.get('start'))
-        end = convert_to_number(cleaned_data.get('end'))
         date = cleaned_data.get('date')
+        start = cleaned_data.get('start')
+        end = cleaned_data.get('end')
         status = cleaned_data.get('status')
 
         if not doctor or not patient:
-            raise ValidationError("Both doctor and patient must have a user account.")
+            raise ValidationError(ERROR_MESSAGES['required_doctor_patient'])
         if doctor == patient:
-            raise ValidationError("Doctor cannot have a visit with themselves.")
+            raise ValidationError(ERROR_MESSAGES['doctor_self_visit'])
         if doctor.user_level != UserType.DOCTOR:
-            raise ValidationError("The assigned doctor must have the Doctor user level.")
+            raise ValidationError(ERROR_MESSAGES['invalid_user_level'])
         if patient.user_level != UserType.PATIENT:
-            raise ValidationError("The assigned patient must have the Patient user level.")
+            raise ValidationError(ERROR_MESSAGES['invalid_user_level'])
         if not doctor.is_active:
-            raise ValidationError("The doctor is not active.")
+            raise ValidationError(ERROR_MESSAGES['inactive_doctor'])
         if start >= end:
-            raise ValidationError("Start time must be before end time.")
-        if start < 0 or end > 96:
-            raise ValidationError("Start and end times must be within the range of 0 to 96.")
+            raise ValidationError(ERROR_MESSAGES['invalid_start_end_time'])
+        if (datetime.combine(datetime.today().date(), end) - datetime.combine(datetime.today().date(), start)) > timedelta(hours=2):
+            raise ValidationError(ERROR_MESSAGES['exceeded_work_day_duration'])
+        if not date:
+            raise ValidationError(ERROR_MESSAGES['invalid_time_format'])
+        # Limit the duration of the work day to 2 hours
+        if (datetime.combine(datetime.min, end) - datetime.combine(datetime.min, start)).total_seconds() > WORK_DAY_DURATION_LIMIT:
+            raise ValidationError(ERROR_MESSAGES['exceeded_work_day_duration'])
         
-        # Проверка на занятость доктора
+        # Ensure minutes are multiples of 15
+        if start.minute % 15 != 0 or end.minute % 15 != 0:
+            raise ValidationError(ERROR_MESSAGES['invalid_time_increment'])
+
+        # Check for doctor's availability
         overlapping_visits = Visit.objects.filter(
             doctor=doctor,
             date=date,
@@ -255,11 +421,17 @@ class VisitForm(forms.ModelForm):
         ).exclude(id=self.instance.id)
 
         if overlapping_visits.exists():
-            other_patient_visits = overlapping_visits.exclude(patient=patient)
+            other_patient_visits = Visit.objects.filter(
+                doctor=doctor,
+                date=date,
+                start__lt=end,
+                end__gt=start,
+                patient=patient
+            ).exclude(id=self.instance.id)
             if other_patient_visits.exists():
-                raise ValidationError("The doctor already has a visit scheduled during this time.")
+                raise ValidationError(ERROR_MESSAGES['overlapping_visit'])
 
-        # Проверка на соответствие расписанию доктора
+        # Check for doctor's schedule
         day_of_week = date.weekday()
         schedule = Schedule.objects.filter(
             doctor=doctor,
@@ -268,86 +440,118 @@ class VisitForm(forms.ModelForm):
             end__gte=end
         )
         if not schedule.exists():
-            raise ValidationError("The visit is outside the doctor's schedule.")
+            raise ValidationError(ERROR_MESSAGES['outside_schedule'])
 
         current_datetime = datetime.now()
-        visit_datetime = datetime.combine(date, datetime.min.time()) + timedelta(minutes=start * 15)  # Assuming each unit of start is 15 minutes
+        visit_datetime = datetime.combine(date, start)
 
         if visit_datetime > current_datetime and status in [VisitStatus.MISSED, VisitStatus.VISITED]:
-            raise ValidationError("A future visit cannot have the status 'Visited' or 'Missed'.")
+            raise ValidationError(ERROR_MESSAGES['invalid_visit_status'])
         if visit_datetime <= current_datetime and status == VisitStatus.SCHEDULED:
-            raise ValidationError("A past visit cannot have the status 'Scheduled'.")
+            raise ValidationError(ERROR_MESSAGES['invalid_past_visit_status'])
 
         return cleaned_data
+
 
 class VisitCreationForm(VisitForm):
-    start = forms.TimeField()
-    end = forms.TimeField()
-
+    """
+    Form for creating visits.
+    """
     class Meta:
         model = Visit
-        fields = ['doctor', 'patient', 'date', 'start', 'end', 'description']
-        required_fields = ['doctor', 'patient', 'date', 'start', 'end']
+        fields = ['date', 'start', 'end', 'description']
+        required_fields = ['date', 'start', 'end']
+
+    def __init__(self, *args, **kwargs):
+        doctor = kwargs.pop('doctor', None)
+        patient = kwargs.pop('patient', None)
+        super().__init__(*args, **kwargs)
+
+        if doctor:
+            self.initial['doctor'] = doctor
+        if patient:
+            self.initial['patient'] = patient
 
     def clean(self):
-        cleaned_data = super().clean()
-
-        start_time_str = cleaned_data.get('start')
-        end_time_str = cleaned_data.get('end')
-
-        if start_time_str:
-            start_time_int = convert_to_number(start_time_str)
-            if start_time_int == -1:
-                self.add_error('start', "Неверное время начала приема. Формат: 'hh:mm'.")
-            else:
-                cleaned_data['start'] = start_time_int
-
-        if end_time_str:
-            end_time_int = convert_to_number(end_time_str)
-            if end_time_int == -1:
-                self.add_error('end', "Неверное время окончания приема. Формат: 'hh:mm'.")
-            else:
-                cleaned_data['end'] = end_time_int
-
-        # Additional validation logic for start and end time (e.g., ensuring end time is after start time)
-
+        cleaned_data = super().clean(doctor=self.initial['doctor'],
+                                     patient=self.initial['patient'])
+        cleaned_data['status'] = STATUS_ACTIVE
         return cleaned_data
 
-class VisitViewForm(VisitForm):
-    date = forms.DateField(widget=forms.DateInput)
-    start = forms.TimeField(widget=forms.TimeInput())
-    end = forms.TimeField(widget=forms.TimeInput())
 
+class VisitViewForm(VisitForm):
+    """
+    Form for viewing visits.
+    """
     class Meta:
         model = Visit
         fields = ['date', 'start', 'end', 'description']
         required_fields = ['date', 'start', 'end', 'status']
-    
+
     def __init__(self, *args, **kwargs):
-        visit = kwargs.pop('instance', None)
+        # Убедитесь, что instance передан правильно
+        visit = kwargs.get('instance', None)
         self.doctor = visit.doctor if visit else None
         self.patient = visit.patient if visit else None
+        self.date = visit.date if visit else None
         super().__init__(*args, **kwargs)
-    
-    def clean(self):
-        cleaned_data = super().clean(self.patient, self.doctor)
-        cleaned_data['status'] = 'Active'
+        # Установка начальных значений полей
+        if visit:
+            self.fields['date'].value = visit.date.strftime('%Y-%m-%d') # NOTE HERE WE SET DATE
+            self.fields['start'].initial = visit.start
+            self.fields['end'].initial = visit.end
+            self.fields['description'].initial = visit.description
 
+    def clean(self):
+        cleaned_data = super().clean()
+        # Дополнительная валидация, если необходимо
+        if not cleaned_data.get('date'):
+            raise ValidationError('Date is required')
+        if not cleaned_data.get('start'):
+            raise ValidationError('Start time is required')
+        if not cleaned_data.get('end'):
+            raise ValidationError('End time is required')
         return cleaned_data
 
+    def save(self, commit=True):
+        visit = super().save(commit=False)
+        # Установка дополнительных атрибутов
+        visit.doctor = self.doctor
+        visit.patient = self.patient
+        visit.date = self.cleaned_data['date']
+        visit.start = self.cleaned_data['start']
+        visit.end = self.cleaned_data['end']
+        visit.description = self.cleaned_data['description']
+
+        if commit:
+            visit.save()
+        return visit
+
+
 class AdminVisitViewForm(VisitForm):
+    """
+    Form for viewing visits (admin).
+    """
     class Meta:
         model = Visit
         fields = ['doctor', 'patient', 'date', 'start', 'end', 'status', 'description']
         required_fields = ['doctor', 'patient', 'date', 'start', 'end', 'status']
 
+
 class AdminVisitCreationForm(VisitForm):
+    """
+    Form for creating visits (admin).
+    """
     class Meta:
         model = Visit
         fields = ['doctor', 'patient', 'date', 'start', 'end', 'description']
         required_fields = ['doctor', 'patient', 'date', 'start', 'end']
 
+
 class DiagnosisForm(forms.ModelForm):
+    """
+    Form for creating/editing diagnoses.
+    """
     class Meta:
         model = Diagnosis
         fields = '__all__'
@@ -358,35 +562,36 @@ class DiagnosisForm(forms.ModelForm):
         patient = cleaned_data.get('patient')
         description = cleaned_data.get('description')
         if not doctor or not patient:
-            raise ValidationError('Doctor and patient are required.')
+            raise ValidationError(ERROR_MESSAGES['doctor_patient_required'])
         if doctor.user_level != UserType.DOCTOR:
-            raise ValidationError("The assigned doctor must have the Doctor user level.")
+            raise ValidationError(ERROR_MESSAGES['doctor_level'])
         if patient.user_level != UserType.PATIENT:
-            raise ValidationError("The assigned patient must have the Patient user level.")
+            raise ValidationError(ERROR_MESSAGES['patient_level'])
         if not doctor.is_active:
-            raise ValidationError("The doctor is not active.")
+            raise ValidationError(ERROR_MESSAGES['doctor_inactive'])
         if not description:
-            raise ValidationError('Description is required.')
+            raise ValidationError(ERROR_MESSAGES['description_required'])
         if len(description) < 10:
-            raise ValidationError('Description must be more detailed.')
+            raise ValidationError(ERROR_MESSAGES['description_detailed'])
 
         return cleaned_data
 
+
 class ScheduleForm(forms.ModelForm):
+    """
+    Base form for creating/editing schedules.
+    """
     def clean(self):
         cleaned_data = super().clean()
         doctor = self.cleaned_data.get('doctor')
-        print(f'Doctor 2: {doctor}')
         start = cleaned_data.get('start')
         end = cleaned_data.get('end')
         day_of_week = cleaned_data.get('day_of_week')
 
         if not doctor:
-            raise ValidationError("Doctor must be assigned.")
+            raise ValidationError(ERROR_MESSAGES['doctor_assigned'])
         if not doctor.is_active:
-            raise ValidationError("The doctor is not active.")
-        if not isinstance(start, int) or not isinstance(end, int):
-            raise ValidationError("Start and end must be integers.")
+            raise ValidationError(ERROR_MESSAGES['doctor_inactive'])
         overlapping_schedules = Schedule.objects.filter(
             doctor=doctor,
             day_of_week=day_of_week,
@@ -394,47 +599,52 @@ class ScheduleForm(forms.ModelForm):
             end__gt=start
         ).exclude(id=self.instance.id)
         if overlapping_schedules.exists():
-            raise ValidationError("This schedule overlaps with an existing schedule for the doctor.")
+            raise ValidationError(ERROR_MESSAGES['schedule_overlap'])
+
+        if start.minute % 15 != 0 or end.minute % 15 != 0:
+            raise ValidationError(ERROR_MESSAGES['time_increments'])
 
         return cleaned_data
 
     def save(self, commit=True):
         schedule = super().save(commit=False)
-        if self.doctor:
-            schedule.doctor = self.doctor
         if commit:
             schedule.save()
         return schedule
 
+
 class AdminScheduleForm(ScheduleForm):
+    """
+    Form for creating/editing schedules (admin).
+    """
     class Meta:
         model = Schedule
         fields = ['doctor', 'start', 'end', 'day_of_week']
         widgets = {
-            'day_of_week': forms.Select(choices=WeekDays),
-            'start': forms.TimeInput(),
-            'end': forms.TimeInput(),
+            'day_of_week': forms.Select(choices=WEEKDAYS_CHOICES),
+            'start': forms.TimeInput(format='%H:%M', attrs=START_END_ATTRS),
+            'end': forms.TimeInput(format='%H:%M', attrs=START_END_ATTRS),
         }
+
 
 class ScheduleViewForm(forms.ModelForm):
+    """
+    Form for viewing schedules.
+    """
     class Meta:
         model = Schedule
-        fields = ['start', 'end', 'day_of_week']
+        fields = ['doctor', 'start', 'end', 'day_of_week']
         widgets = {
-            'day_of_week': forms.Select(choices=WeekDays),
-            'start': forms.TimeInput(),
-            'end': forms.TimeInput(),
+            'day_of_week': forms.Select(choices=WEEKDAYS_CHOICES),
+            'start': forms.TimeInput(format='%H:%M', attrs=START_END_ATTRS),
+            'end': forms.TimeInput(format='%H:%M', attrs=START_END_ATTRS),
         }
 
-    def save(self, commit=True):
-        schedule = super().save(commit=False)
-        if self.instance.pk is None:  # For new instances
-            schedule.doctor = self.doctor
-        if commit:
-            schedule.save()
-        return schedule
 
 class DoctorSearchForm(forms.Form):
+    """
+    Form for searching doctors.
+    """
     fullname = forms.CharField(required=False, label='Имя доктора')
     specialization = forms.CharField(required=False, label='Специализация')
     username = forms.CharField(max_length=15, required=False, label='Имя пользователя')
@@ -446,7 +656,7 @@ class DoctorSearchForm(forms.Form):
         if not phone:
             return ''
         if phone and not phone.isdigit():
-            raise ValidationError("Phone number must contain only digits.")
+            raise ValidationError(ERROR_MESSAGES['phone_digits'])
         return phone.strip()
 
     def clean_email(self):
@@ -454,11 +664,11 @@ class DoctorSearchForm(forms.Form):
         if email:
             return email.strip()
         return ''
-    
+
     def clean_username(self):
         username = self.cleaned_data.get('username')
         if not is_safe_username(username) and username != '':
-            raise ValidationError("Username invalid. Try another username.")
+            raise ValidationError(ERROR_MESSAGES['username_invalid'])
         return username
 
     def clean_fullname(self):
@@ -466,17 +676,16 @@ class DoctorSearchForm(forms.Form):
         if not fullname:
             return ''
         if any(char.isdigit() for char in fullname):
-            raise ValidationError("Fullname can't contain numbers.")
+            raise ValidationError(ERROR_MESSAGES['fullname_numbers'])
         joined_fullname = ' '.join([word.strip() for word in fullname.split()])
         fullname_length = len(joined_fullname.split())
         if fullname_length != 2:
-            raise ValidationError("Fullname must contain 2 words.")
+            raise ValidationError(ERROR_MESSAGES['fullname_two_words'])
         return joined_fullname
 
     def clean(self):
         cleaned_data = super().clean()
-        print(cleaned_data)
         for _, value in cleaned_data.items():
             if value != '':
                 return cleaned_data
-        raise ValidationError('Пожалуйста, введите хотя бы один параметр для поиска.')
+        raise ValidationError(ERROR_MESSAGES['search_param_required'])

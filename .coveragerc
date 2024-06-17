@@ -1,0 +1,10 @@
+[run]
+omit =
+    */tests/*
+    */migrations/*
+    */manage.py
+    */__init__.py
+    clinic/apps.py
+    clinic/config.py
+    settings.py
+    ./urls.py
