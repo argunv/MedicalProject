@@ -36,13 +36,15 @@ jobs:
         python-version: 3.12
     - name: Установка зависимостей
       run: pip install -r requirements.txt
+    - name: Проверка состояния контейнера PostgreSQL
+      run: docker ps -a
     - name: Настройка базы данных
       run: |
         sudo apt-get install postgresql-client
-        psql -h localhost -U user -d test_db -c "CREATE DATABASE test_db;"
+        psql -h localhost -U ${{ secrets.PG_USER }} -d ${{ secrets.PG_DBNAME }} -c "CREATE DATABASE ${{ secrets.PG_DBNAME }};"
       env:
-        PGPASSWORD: password
+        PGPASSWORD: ${{ secrets.PG_PASSWORD }}
     - name: Запуск тестов
       run: python manage.py test tests/
       env:
-        DATABASE_URL: postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DBNAME}
+        DATABASE_URL: postgres://${{ secrets.PG_USER }}:${{ secrets.PG_PASSWORD }}@${{ secrets.PG_HOST }}:${{ secrets.PG_PORT }}/${{ secrets.PG_DBNAME }}
